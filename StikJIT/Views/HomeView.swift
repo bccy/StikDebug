@@ -45,13 +45,13 @@ struct HomeView: View {
             VStack(spacing: 25) {
                 Spacer()
                 VStack(spacing: 5) {
-                    Text("Welcome to StikDebug \(username)!")
+                    Text("Welcome to StikDebug, \(username)!")
                         .font(.system(.largeTitle, design: .rounded))
                         .fontWeight(.bold)
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
                     
-                    Text(pairingFileExists ? "Click enable JIT to get started" : "Pick pairing file to get started")
+                    Text(pairingFileExists ? "Tap "Enable JIT" to get started" : "Pick pairing file to get started")
                         .font(.system(.subheadline, design: .rounded))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
