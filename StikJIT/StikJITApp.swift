@@ -66,7 +66,7 @@ struct HeartbeatApp: App {
 
 func isPairing() -> Bool {
     let pairingpath = PairingFileStore.prepareURL().path
-    var pairingFile: RpPairingFileHandle?
+    var pairingFile: OpaquePointer?
     let err = rp_pairing_file_read(pairingpath, &pairingFile)
     if err != nil { return false }
     rp_pairing_file_free(pairingFile)
