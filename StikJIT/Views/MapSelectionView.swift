@@ -1083,7 +1083,11 @@ struct LocationSimulationView: View {
     }
 
     private func locationUpdateCode(for coordinate: CLLocationCoordinate2D) -> Int32 {
-        simulate_location(deviceIP, coordinate.latitude, coordinate.longitude, pairingFilePath)
+        // Apple MapKit returns GCJ-02 coordinates in mainland China, but the
+        // iOS location-simulation service expects WGS-84.  Convert here so
+        // the simulated position matches the pin the user dropped on the map.
+        let corrected = ChinaCoordinateConverter.gcj02ToWGS84Exact(coordinate)
+        return simulate_location(deviceIP, corrected.latitude, corrected.longitude, pairingFilePath)
     }
 }
 
