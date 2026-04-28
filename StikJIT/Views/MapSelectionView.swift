@@ -829,7 +829,7 @@ struct LocationSimulationView: View {
         runLocationCommand(
             errorTitle: "Route Simulation Failed",
             errorMessage: { code in
-                "Could not start route simulation (error \(code)). Make sure the device is connected and the DDI is mounted."
+                "Could not start route simulation (error \(code)). Make sure the device is connected and LocalDevVPN is running."
             },
             operation: { locationUpdateCode(for: firstCoordinate) }
         ) {
