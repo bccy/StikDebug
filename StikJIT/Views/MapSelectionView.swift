@@ -477,6 +477,7 @@ struct LocationSimulationView: View {
     @State private var isPrefetchingRouteSpeeds = false
     @State private var routeSpeedPrefetchProgress = 0.0
     @State private var showAlert = false
+    @State private var showCellularNetworkWarning = false
     @State private var alertTitle = ""
     @State private var alertMessage = ""
 
@@ -537,6 +538,10 @@ struct LocationSimulationView: View {
 
     private var isCellularBlockingSimulation: Bool {
         networkPathObserver.usesCellular && !networkPathObserver.usesWiFi
+    }
+
+    private var isLikelyAirplaneMode: Bool {
+        !networkPathObserver.usesCellular && !networkPathObserver.usesWiFi
     }
 
     private var hasRouteContext: Bool {
@@ -621,6 +626,54 @@ struct LocationSimulationView: View {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(.white.opacity(0.18), lineWidth: 1)
             )
+    }
+
+    private var cellularNetworkWarningOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.42)
+                .ignoresSafeArea()
+
+            VStack(spacing: 18) {
+                ZStack {
+                    Circle()
+                        .fill(.orange.opacity(0.18))
+                        .frame(width: 78, height: 78)
+                    Image(systemName: "antenna.radiowaves.left.and.right.slash")
+                        .font(.system(size: 36, weight: .bold))
+                        .foregroundStyle(.orange)
+                }
+
+                Text("当前网络不可修改位置")
+                    .font(.title3.bold())
+                    .multilineTextAlignment(.center)
+
+                Text("移动数据下使用位置模拟需要先开启飞行模式，位置修改完毕后关闭飞行模式即可。")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+
+                Button {
+                    showCellularNetworkWarning = false
+                } label: {
+                    Text("我知道了")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+            }
+            .padding(24)
+            .frame(maxWidth: 340)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .strokeBorder(.orange.opacity(0.35), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.28), radius: 28, x: 0, y: 12)
+            .padding(.horizontal, 24)
+        }
     }
 
     var body: some View {
@@ -732,6 +785,10 @@ struct LocationSimulationView: View {
             Button("取消", role: .cancel) { newBookmarkName = "" }
         } message: {
             Text("为这个位置输入一个名称。")
+        }
+        .fullScreenCover(isPresented: $showCellularNetworkWarning) {
+            cellularNetworkWarningOverlay
+                .presentationBackground(.clear)
         }
         .sheet(isPresented: $showBookmarks) {
             BookmarksView(bookmarks: $bookmarks) { bookmark in
@@ -877,7 +934,7 @@ struct LocationSimulationView: View {
                 .disabled(isRouteRunning)
             }
         } else {
-            Text("点击地图放置标记")
+            Text("点击地图选择定位")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -921,7 +978,7 @@ struct LocationSimulationView: View {
                     playButtonHaptic()
                     simulateRoute()
                 } label: {
-                    Text("播放路线")
+                    Text("开始模拟路线")
                 }
                     .buttonStyle(.borderedProminent)
                     .disabled(
@@ -962,6 +1019,7 @@ struct LocationSimulationView: View {
                 beginBackgroundTask()
                 startResendLoop(with: coord)
                 BackgroundLocationManager.shared.requestStart()
+                showAirplaneModeSuccessIfNeeded()
             }
         }
     }
@@ -992,15 +1050,21 @@ struct LocationSimulationView: View {
                 persistActiveSimulation(firstCoordinate)
                 routePlaybackCoordinate = firstCoordinate
                 startRoutePlayback()
+                showAirplaneModeSuccessIfNeeded()
             }
         }
     }
 
+    private func showAirplaneModeSuccessIfNeeded() {
+        guard isLikelyAirplaneMode else { return }
+        alertTitle = "定位修改成功"
+        alertMessage = "已成功修改定位，请关闭飞行模式。"
+        showAlert = true
+    }
+
     private func canStartSimulationOnCurrentNetwork() -> Bool {
         guard !isCellularBlockingSimulation else {
-            alertTitle = "移动数据下不可修改位置，请先切换网络"
-            alertMessage = "移动数据修改位置需要先开启飞行模式，位置修改完毕后关闭飞行模式即可。"
-            showAlert = true
+            showCellularNetworkWarning = true
             return false
         }
         return true
