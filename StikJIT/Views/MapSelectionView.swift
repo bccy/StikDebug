@@ -590,29 +590,6 @@ struct LocationSimulationView: View {
         .foregroundStyle(.secondary)
     }
 
-    private var cellularBlockingWarning: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.yellow)
-                .font(.title3)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("当前仅使用移动数据，已阻止开始模拟")
-                    .font(.headline)
-                Text("请连接 Wi‑Fi 后再修改位置；或者先打开飞行模式并重新连接虚拟定位服务，修改成功后再关闭飞行模式。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.yellow.opacity(0.18), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(.yellow.opacity(0.45), lineWidth: 1)
-        )
-    }
-
     private var searchResultsListBase: some View {
         List(searchCompleter.results.prefix(5), id: \.self) { result in
             Button {
@@ -792,11 +769,6 @@ struct LocationSimulationView: View {
             }
             endBackgroundTask()
         }
-        .onChange(of: isCellularBlockingSimulation) { _, shouldBlock in
-            guard shouldBlock else { return }
-            stopResendTimer()
-            cancelRoutePlayback(resetMarker: false)
-        }
     }
 
     // MARK: - Bookmarks
@@ -872,10 +844,6 @@ struct LocationSimulationView: View {
                 .font(.footnote.monospaced())
                 .foregroundStyle(.secondary)
 
-            if isCellularBlockingSimulation {
-                cellularBlockingWarning
-            }
-
             HStack(spacing: 12) {
                 if hasActiveSimulation {
                     Button {
@@ -896,7 +864,7 @@ struct LocationSimulationView: View {
                     Text("模拟位置")
                 }
                     .buttonStyle(.borderedProminent)
-                    .disabled(!pairingExists || isBusy || isLoadingRoute || isCellularBlockingSimulation)
+                    .disabled(!pairingExists || isBusy || isLoadingRoute)
 
                 Button {
                     playButtonHaptic()
@@ -936,10 +904,6 @@ struct LocationSimulationView: View {
 
             routeAttributionLink
 
-            if isCellularBlockingSimulation {
-                cellularBlockingWarning
-            }
-
             HStack(spacing: 12) {
                 if hasActiveSimulation {
                     Button {
@@ -965,7 +929,6 @@ struct LocationSimulationView: View {
                         isBusy ||
                         isLoadingRoute ||
                         isPrefetchingRouteSpeeds ||
-                        isCellularBlockingSimulation ||
                         routePlan == nil ||
                         routePlaybackSamples.isEmpty
                     )
@@ -984,7 +947,7 @@ struct LocationSimulationView: View {
 
     private func simulate() {
         guard pairingExists, let coord = coordinate, !isBusy else { return }
-        guard !isCellularBlockingSimulation else { return }
+        guard canStartSimulationOnCurrentNetwork() else { return }
 
         Task { @MainActor in
             guard await ensureLocationServiceConnected() else { return }
@@ -1011,7 +974,7 @@ struct LocationSimulationView: View {
               !isRouteRunning else {
             return
         }
-        guard !isCellularBlockingSimulation else { return }
+        guard canStartSimulationOnCurrentNetwork() else { return }
         Task { @MainActor in
             guard await ensureLocationServiceConnected() else { return }
             stopResendLoop()
@@ -1031,6 +994,16 @@ struct LocationSimulationView: View {
                 startRoutePlayback()
             }
         }
+    }
+
+    private func canStartSimulationOnCurrentNetwork() -> Bool {
+        guard !isCellularBlockingSimulation else {
+            alertTitle = "移动数据下不可修改位置，请先切换网络"
+            alertMessage = "移动数据修改位置需要先开启飞行模式，位置修改完毕后关闭飞行模式即可。"
+            showAlert = true
+            return false
+        }
+        return true
     }
 
     private func runLocationCommand(
