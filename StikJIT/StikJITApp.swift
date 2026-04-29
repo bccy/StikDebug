@@ -14,6 +14,7 @@ private func registerDefaults() {
         "keepAliveAudio": true,
         "keepAliveLocation": true
     ])
+    UserDefaults.standard.removeObject(forKey: "customTargetIP")
 }
 
 // MARK: - Main App
