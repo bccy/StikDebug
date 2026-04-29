@@ -237,7 +237,9 @@ private func fetchOpenStreetMapWays(for coordinates: [CLLocationCoordinate2D]) a
     components?.queryItems = [URLQueryItem(name: "data", value: query)]
     guard let url = components?.url else { return [] }
 
-    let (data, response) = try await URLSession.shared.data(from: url)
+    var request = URLRequest(url: url)
+    request.timeoutInterval = 6
+    let (data, response) = try await URLSession.shared.data(for: request)
 
     if let httpResponse = response as? HTTPURLResponse,
        !(200...299).contains(httpResponse.statusCode) {
@@ -327,18 +329,6 @@ private func buildPlaybackSamples(
     }
 
     return samples
-}
-
-private func prefetchRoutePlaybackSamples(
-    displayCoordinates: [CLLocationCoordinate2D],
-    fallbackSpeedMetersPerSecond: CLLocationSpeed
-) async -> [RoutePlaybackSample] {
-    let speedWays = (try? await fetchOpenStreetMapWays(for: displayCoordinates)) ?? []
-    return buildPlaybackSamples(
-        from: displayCoordinates,
-        speedWays: speedWays,
-        fallbackSpeedMetersPerSecond: fallbackSpeedMetersPerSecond
-    )
 }
 
 // MARK: - Bookmark Model
@@ -452,10 +442,12 @@ struct LocationSimulationView: View {
     @State private var resendTimer: Timer?
     @State private var routeLoadTask: Task<Void, Never>?
     @State private var routeSpeedPrefetchTask: Task<Void, Never>?
+    @State private var routeSpeedProgressTask: Task<Void, Never>?
     @State private var routePlaybackTask: Task<Void, Never>?
     @State private var isBusy = false
     @State private var isLoadingRoute = false
     @State private var isPrefetchingRouteSpeeds = false
+    @State private var routeSpeedPrefetchProgress = 0.0
     @State private var showAlert = false
     @State private var alertTitle = ""
     @State private var alertMessage = ""
@@ -546,7 +538,7 @@ struct LocationSimulationView: View {
             return "正在计算路线…"
         }
         if isPrefetchingRouteSpeeds {
-            return "正在预取道路限速…"
+            return "正在读取道路限速… \(Int(routeSpeedPrefetchProgress * 100))%"
         }
         if routePlan != nil {
             return "路线已就绪。"
@@ -757,7 +749,7 @@ struct LocationSimulationView: View {
             routeLoadTask?.cancel()
             routeLoadTask = nil
             routeSpeedPrefetchTask?.cancel()
-            routeSpeedPrefetchTask = nil
+            resetRouteSpeedPrefetchState()
             cancelRoutePlayback(resetMarker: true)
             stopResendLoop()
             if backgroundTaskID != .invalid {
@@ -865,9 +857,13 @@ struct LocationSimulationView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
-            if isLoadingRoute || isPrefetchingRouteSpeeds {
+            if isLoadingRoute {
                 ProgressView()
                     .controlSize(.small)
+            } else if isPrefetchingRouteSpeeds {
+                ProgressView(value: routeSpeedPrefetchProgress)
+                    .progressViewStyle(.linear)
+                    .frame(maxWidth: 260)
             } else if let routeSummaryText {
                 Text(routeSummaryText)
                     .font(.footnote.monospaced())
@@ -926,7 +922,8 @@ struct LocationSimulationView: View {
         guard pairingExists,
               routePlan != nil,
               let firstCoordinate = routePlaybackSamples.first?.coordinate,
-              !isBusy else {
+              !isBusy,
+              !isRouteRunning else {
             return
         }
         Task { @MainActor in
@@ -989,6 +986,11 @@ struct LocationSimulationView: View {
         routeLoadTask = nil
         routeSpeedPrefetchTask?.cancel()
         routeSpeedPrefetchTask = nil
+        routeSpeedProgressTask?.cancel()
+        routeSpeedProgressTask = nil
+        isLoadingRoute = false
+        isPrefetchingRouteSpeeds = false
+        routeSpeedPrefetchProgress = 0.0
         cancelRoutePlayback(resetMarker: true)
         stopResendLoop()
         runLocationCommand(
@@ -1049,7 +1051,7 @@ struct LocationSimulationView: View {
         routeLoadTask?.cancel()
         routeLoadTask = nil
         routeSpeedPrefetchTask?.cancel()
-        routeSpeedPrefetchTask = nil
+        resetRouteSpeedPrefetchState()
         routeRequestID = UUID()
         routePlan = nil
         routeStartSelection = nil
@@ -1057,12 +1059,12 @@ struct LocationSimulationView: View {
         routePlaybackSamples = []
         routePlaybackCoordinate = nil
         isLoadingRoute = false
-        isPrefetchingRouteSpeeds = false
     }
 
     private func refreshRoute() {
         routeLoadTask?.cancel()
         routeSpeedPrefetchTask?.cancel()
+        resetRouteSpeedPrefetchState()
         routePlan = nil
         routePlaybackSamples = []
 
@@ -1070,6 +1072,7 @@ struct LocationSimulationView: View {
               let routeEnd = routeEndSelection?.coordinate else {
             isLoadingRoute = false
             isPrefetchingRouteSpeeds = false
+            routeSpeedPrefetchProgress = 0.0
             return
         }
 
@@ -1077,6 +1080,7 @@ struct LocationSimulationView: View {
         routeRequestID = requestID
         isLoadingRoute = true
         isPrefetchingRouteSpeeds = false
+        routeSpeedPrefetchProgress = 0.0
 
         let request = MKDirections.Request()
         request.source = MKMapItem(placemark: MKPlacemark(coordinate: routeStart))
@@ -1111,6 +1115,7 @@ struct LocationSimulationView: View {
                     self.routePlan = routePlan
                     isLoadingRoute = false
                     isPrefetchingRouteSpeeds = true
+                    startRouteSpeedProgressAnimation(requestID: requestID)
                     if let routePolyline {
                         position = .rect(routePolyline.boundingMapRect)
                     }
@@ -1123,16 +1128,33 @@ struct LocationSimulationView: View {
                 await MainActor.run {
                     guard routeRequestID == requestID else { return }
                     routeSpeedPrefetchTask?.cancel()
-                    routeSpeedPrefetchTask = Task.detached(priority: .utility) {
-                        let playbackSamples = await prefetchRoutePlaybackSamples(
-                            displayCoordinates: displayCoordinates,
-                            fallbackSpeedMetersPerSecond: fallbackSpeed
-                        )
-                        guard !Task.isCancelled else { return }
+                    routeSpeedPrefetchTask = Task(priority: .utility) {
                         await MainActor.run {
                             guard routeRequestID == requestID else { return }
+                            routeSpeedPrefetchProgress = max(routeSpeedPrefetchProgress, 0.25)
+                        }
+                        let speedWays = (try? await fetchOpenStreetMapWays(for: displayCoordinates)) ?? []
+                        await MainActor.run {
+                            guard routeRequestID == requestID else { return }
+                            routeSpeedPrefetchProgress = max(routeSpeedPrefetchProgress, 0.85)
+                        }
+                        let playbackSamples = buildPlaybackSamples(
+                            from: displayCoordinates,
+                            speedWays: speedWays,
+                            fallbackSpeedMetersPerSecond: fallbackSpeed
+                        )
+                        guard !Task.isCancelled else {
+                            await MainActor.run {
+                                guard routeRequestID == requestID else { return }
+                                resetRouteSpeedPrefetchState()
+                            }
+                            return
+                        }
+                        await MainActor.run {
+                            guard routeRequestID == requestID else { return }
+                            routeSpeedPrefetchProgress = 1.0
                             routePlaybackSamples = playbackSamples
-                            isPrefetchingRouteSpeeds = false
+                            resetRouteSpeedPrefetchState(keepProgressComplete: true)
                         }
                     }
                 }
@@ -1140,19 +1162,42 @@ struct LocationSimulationView: View {
                 await MainActor.run {
                     guard routeRequestID == requestID else { return }
                     isLoadingRoute = false
-                    isPrefetchingRouteSpeeds = false
+                    resetRouteSpeedPrefetchState()
                 }
             } catch {
                 await MainActor.run {
                     guard routeRequestID == requestID else { return }
                     isLoadingRoute = false
-                    isPrefetchingRouteSpeeds = false
+                    resetRouteSpeedPrefetchState()
                     alertTitle = "路线失败"
                     alertMessage = error.localizedDescription
                     showAlert = true
                 }
             }
         }
+    }
+
+    private func startRouteSpeedProgressAnimation(requestID: UUID) {
+        routeSpeedProgressTask?.cancel()
+        routeSpeedPrefetchProgress = 0.08
+        routeSpeedProgressTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(180))
+                guard routeRequestID == requestID, isPrefetchingRouteSpeeds else { return }
+                guard routeSpeedPrefetchProgress < 0.7 else { continue }
+                let remaining = 0.7 - routeSpeedPrefetchProgress
+                let increment = max(0.01, remaining * 0.08)
+                routeSpeedPrefetchProgress = min(0.7, routeSpeedPrefetchProgress + increment)
+            }
+        }
+    }
+
+    private func resetRouteSpeedPrefetchState(keepProgressComplete: Bool = false) {
+        routeSpeedProgressTask?.cancel()
+        routeSpeedProgressTask = nil
+        routeSpeedPrefetchTask = nil
+        isPrefetchingRouteSpeeds = false
+        routeSpeedPrefetchProgress = keepProgressComplete ? 1.0 : 0.0
     }
 
     private func startRoutePlayback() {
