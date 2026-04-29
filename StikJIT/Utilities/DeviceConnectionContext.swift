@@ -13,6 +13,6 @@ enum DeviceConnectionContext {
         if let stored, !stored.isEmpty {
             return stored
         }
-        return "10.7.0.1"
+        return "198.18.0.1"
     }
 }

@@ -13,8 +13,8 @@ final class BuiltInVPNManager: ObservableObject {
 
     private let tunnelBundleID = "com.stik.stikdebug.PacketTunnel"
     private let vpnDescription = "StikDebug Loopback"
-    private let tunnelDeviceIP = "10.7.0.0"
-    private let tunnelFakeIP = "10.7.0.1"
+    private let tunnelDeviceIP = "198.18.0.0"
+    private let tunnelFakeIP = "198.18.0.1"
     private let tunnelSubnetMask = "255.255.255.0"
 
     @Published private(set) var status: NEVPNStatus = .invalid

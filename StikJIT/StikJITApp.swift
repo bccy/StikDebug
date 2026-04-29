@@ -138,7 +138,7 @@ func startTunnelInBackground(showErrorUI: Bool = true) {
                 } else {
                     showAlert(
                         title: "连接错误",
-                        message: "\(error.localizedDescription)\n\n请确认 Wi‑Fi 和 LocalDevVPN 已连接，并且设备可访问。",
+                        message: "\(error.localizedDescription)\n\n请确认虚拟定位服务已连接，并且设备可访问。若当前有其它 VPN、代理或 DNS 防护工具正在运行，请先断开后重试。",
                         showOk: false,
                         showTryAgain: true
                     ) { shouldTryAgain in
