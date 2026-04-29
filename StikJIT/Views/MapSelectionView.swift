@@ -50,6 +50,71 @@ private struct RoutePlaybackSample {
     let delayFromPrevious: TimeInterval
 }
 
+private enum LiquidGlassButtonRole {
+    case primary
+    case secondary
+    case destructive
+    case icon
+
+    var foregroundStyle: Color {
+        switch self {
+        case .primary:
+            return .white
+        case .secondary, .icon:
+            return .primary
+        case .destructive:
+            return .red
+        }
+    }
+
+    var fallbackTint: Color {
+        switch self {
+        case .primary:
+            return .blue.opacity(0.78)
+        case .secondary, .icon:
+            return .white.opacity(0.18)
+        case .destructive:
+            return .red.opacity(0.16)
+        }
+    }
+}
+
+private struct LiquidGlassButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    let role: LiquidGlassButtonRole
+    let isCompact: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: isCompact ? 16 : 15, weight: .semibold))
+            .foregroundStyle(role.foregroundStyle)
+            .padding(.horizontal, isCompact ? 0 : 16)
+            .frame(width: isCompact ? 44 : nil, height: 44)
+            .frame(minWidth: isCompact ? nil : 92)
+            .contentShape(Capsule())
+            .liquidGlassSurface(role: role, cornerRadius: 22)
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .opacity(isEnabled ? (configuration.isPressed ? 0.82 : 1) : 0.42)
+            .saturation(isEnabled ? 1 : 0.35)
+            .animation(.spring(response: 0.24, dampingFraction: 0.78), value: configuration.isPressed)
+            .animation(.easeInOut(duration: 0.18), value: isEnabled)
+    }
+}
+
+private extension View {
+    func liquidGlassSurface(role: LiquidGlassButtonRole, cornerRadius: CGFloat) -> some View {
+        self
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .background(role.fallbackTint, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(.white.opacity(0.28), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.18), radius: 12, x: 0, y: 5)
+    }
+}
+
 private struct OpenStreetMapWay {
     let geometry: [CLLocationCoordinate2D]
     let speedLimitMetersPerSecond: CLLocationSpeed
@@ -563,12 +628,8 @@ struct LocationSimulationView: View {
             centerOnCurrentLocation()
         } label: {
             Image(systemName: "location.fill")
-                .font(.system(size: 17, weight: .semibold))
-                .frame(width: 44, height: 44)
-                .background(.ultraThinMaterial, in: Circle())
-                .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(LiquidGlassButtonStyle(role: .icon, isCompact: true))
         .accessibilityLabel("回到当前位置")
     }
 
@@ -597,12 +658,12 @@ struct LocationSimulationView: View {
 
     @ViewBuilder
     private var searchResultsList: some View {
-        if #available(iOS 26, *) {
-            searchResultsListBase
-                .glassEffect(in: .rect(cornerRadius: 12))
-        } else {
-            searchResultsListBase
-        }
+        searchResultsListBase
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(.white.opacity(0.18), lineWidth: 1)
+            )
     }
 
     var body: some View {
@@ -694,12 +755,14 @@ struct LocationSimulationView: View {
                 } label: {
                     Image(systemName: "bookmark.fill")
                 }
+                .buttonStyle(LiquidGlassButtonStyle(role: .icon, isCompact: true))
 
                 Button {
                     showRouteSearch = true
                 } label: {
                     Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
                 }
+                .buttonStyle(LiquidGlassButtonStyle(role: .icon, isCompact: true))
                 .disabled(isBusy || isRouteRunning)
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -826,13 +889,12 @@ struct LocationSimulationView: View {
             HStack(spacing: 12) {
                 if hasActiveSimulation {
                     Button("停止", action: clear)
-                        .buttonStyle(.bordered)
-                        .tint(.red)
+                        .buttonStyle(LiquidGlassButtonStyle(role: .destructive, isCompact: false))
                         .disabled(!pairingExists || isBusy)
                 }
 
                 Button("模拟位置", action: simulate)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(LiquidGlassButtonStyle(role: .primary, isCompact: false))
                     .disabled(!pairingExists || isBusy || isLoadingRoute)
 
                 Button {
@@ -840,8 +902,7 @@ struct LocationSimulationView: View {
                 } label: {
                     Image(systemName: "bookmark")
                 }
-                .buttonStyle(.bordered)
-                .tint(.blue)
+                .buttonStyle(LiquidGlassButtonStyle(role: .icon, isCompact: true))
                 .disabled(isRouteRunning)
             }
         } else {
@@ -875,13 +936,12 @@ struct LocationSimulationView: View {
             HStack(spacing: 12) {
                 if hasActiveSimulation {
                     Button("停止", action: clear)
-                        .buttonStyle(.bordered)
-                        .tint(.red)
+                        .buttonStyle(LiquidGlassButtonStyle(role: .destructive, isCompact: false))
                         .disabled(!pairingExists || isBusy)
                 }
 
                 Button("播放路线", action: simulateRoute)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(LiquidGlassButtonStyle(role: .primary, isCompact: false))
                     .disabled(
                         !pairingExists ||
                         isBusy ||
@@ -892,7 +952,7 @@ struct LocationSimulationView: View {
                     )
 
                 Button("重置", action: resetRouteSelection)
-                    .buttonStyle(.bordered)
+                    .buttonStyle(LiquidGlassButtonStyle(role: .secondary, isCompact: false))
                     .disabled(isBusy || isRouteRunning)
             }
         }
