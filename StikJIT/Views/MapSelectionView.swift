@@ -611,9 +611,14 @@ struct LocationSimulationView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .listRowBackground(Color.clear)
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .frame(maxHeight: 350)
         .scrollDisabled(true)
         .padding(.horizontal, 16)
@@ -624,10 +629,12 @@ struct LocationSimulationView: View {
     private var searchResultsList: some View {
         searchResultsListBase
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(.white.opacity(0.18), lineWidth: 1)
             )
+            .shadow(color: .black.opacity(0.14), radius: 18, x: 0, y: 10)
     }
 
     private var cellularNetworkWarningOverlay: some View {
