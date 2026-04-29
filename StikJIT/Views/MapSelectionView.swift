@@ -7,6 +7,7 @@
 
 import SwiftUI
 import MapKit
+import Network
 import UIKit
 
 private struct CoordinateSnapshot: Equatable {
@@ -429,6 +430,31 @@ final class CurrentLocationProvider: NSObject, ObservableObject, CLLocationManag
     }
 }
 
+@MainActor
+final class NetworkPathObserver: ObservableObject {
+    @Published private(set) var usesCellular = false
+    @Published private(set) var usesWiFi = false
+
+    private let monitor = NWPathMonitor()
+    private let queue = DispatchQueue(label: "com.stik.network-path")
+
+    init() {
+        monitor.pathUpdateHandler = { [weak self] path in
+            let cellular = path.usesInterfaceType(.cellular)
+            let wifi = path.usesInterfaceType(.wifi)
+            Task { @MainActor in
+                self?.usesCellular = cellular
+                self?.usesWiFi = wifi
+            }
+        }
+        monitor.start(queue: queue)
+    }
+
+    deinit {
+        monitor.cancel()
+    }
+}
+
 struct LocationSimulationView: View {
     // Serial queue: the location simulation helpers share process-wide state, so
     // serialising all calls avoids handle lifetime races.
@@ -457,6 +483,7 @@ struct LocationSimulationView: View {
     @State private var searchText = ""
     @StateObject private var searchCompleter = LocationSearchCompleter()
     @StateObject private var currentLocationProvider = CurrentLocationProvider()
+    @StateObject private var networkPathObserver = NetworkPathObserver()
     @State private var showRouteSearch = false
     @State private var routeStartSelection: RouteSearchSelection?
     @State private var routeEndSelection: RouteSearchSelection?
@@ -508,6 +535,10 @@ struct LocationSimulationView: View {
         routePlaybackTask != nil
     }
 
+    private var isCellularBlockingSimulation: Bool {
+        networkPathObserver.usesCellular && !networkPathObserver.usesWiFi
+    }
+
     private var hasRouteContext: Bool {
         routeStartSelection != nil ||
         routeEndSelection != nil ||
@@ -557,6 +588,29 @@ struct LocationSimulationView: View {
         )
         .font(.caption2)
         .foregroundStyle(.secondary)
+    }
+
+    private var cellularBlockingWarning: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.yellow)
+                .font(.title3)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("当前仅使用移动数据，已阻止开始模拟")
+                    .font(.headline)
+                Text("请连接 Wi‑Fi 后再修改位置；或者先打开飞行模式并重新连接虚拟定位服务，修改成功后再关闭飞行模式。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.yellow.opacity(0.18), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(.yellow.opacity(0.45), lineWidth: 1)
+        )
     }
 
     private var searchResultsListBase: some View {
@@ -738,6 +792,11 @@ struct LocationSimulationView: View {
             }
             endBackgroundTask()
         }
+        .onChange(of: isCellularBlockingSimulation) { _, shouldBlock in
+            guard shouldBlock else { return }
+            stopResendTimer()
+            cancelRoutePlayback(resetMarker: false)
+        }
     }
 
     // MARK: - Bookmarks
@@ -813,6 +872,10 @@ struct LocationSimulationView: View {
                 .font(.footnote.monospaced())
                 .foregroundStyle(.secondary)
 
+            if isCellularBlockingSimulation {
+                cellularBlockingWarning
+            }
+
             HStack(spacing: 12) {
                 if hasActiveSimulation {
                     Button {
@@ -833,7 +896,7 @@ struct LocationSimulationView: View {
                     Text("模拟位置")
                 }
                     .buttonStyle(.borderedProminent)
-                    .disabled(!pairingExists || isBusy || isLoadingRoute)
+                    .disabled(!pairingExists || isBusy || isLoadingRoute || isCellularBlockingSimulation)
 
                 Button {
                     playButtonHaptic()
@@ -873,6 +936,10 @@ struct LocationSimulationView: View {
 
             routeAttributionLink
 
+            if isCellularBlockingSimulation {
+                cellularBlockingWarning
+            }
+
             HStack(spacing: 12) {
                 if hasActiveSimulation {
                     Button {
@@ -898,6 +965,7 @@ struct LocationSimulationView: View {
                         isBusy ||
                         isLoadingRoute ||
                         isPrefetchingRouteSpeeds ||
+                        isCellularBlockingSimulation ||
                         routePlan == nil ||
                         routePlaybackSamples.isEmpty
                     )
@@ -916,6 +984,7 @@ struct LocationSimulationView: View {
 
     private func simulate() {
         guard pairingExists, let coord = coordinate, !isBusy else { return }
+        guard !isCellularBlockingSimulation else { return }
 
         Task { @MainActor in
             guard await ensureLocationServiceConnected() else { return }
@@ -942,6 +1011,7 @@ struct LocationSimulationView: View {
               !isRouteRunning else {
             return
         }
+        guard !isCellularBlockingSimulation else { return }
         Task { @MainActor in
             guard await ensureLocationServiceConnected() else { return }
             stopResendLoop()
@@ -1080,7 +1150,7 @@ struct LocationSimulationView: View {
         )
         simulatedCoordinate = restoredCoordinate
         coordinate = coordinate ?? restoredCoordinate
-        if resendTimer == nil {
+        if resendTimer == nil && !isCellularBlockingSimulation {
             startResendLoop(with: restoredCoordinate)
         }
     }
