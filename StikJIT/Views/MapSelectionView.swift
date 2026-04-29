@@ -474,7 +474,6 @@ struct LocationSimulationView: View {
     @State private var routeSpeedPrefetchTask: Task<Void, Never>?
     @State private var routeSpeedProgressTask: Task<Void, Never>?
     @State private var routePlaybackTask: Task<Void, Never>?
-    @State private var actualLocationReloadTask: Task<Void, Never>?
     @State private var isBusy = false
     @State private var isLoadingRoute = false
     @State private var isPrefetchingRouteSpeeds = false
@@ -820,8 +819,6 @@ struct LocationSimulationView: View {
         .onDisappear {
             routeLoadTask?.cancel()
             routeLoadTask = nil
-            actualLocationReloadTask?.cancel()
-            actualLocationReloadTask = nil
             routeSpeedPrefetchTask?.cancel()
             resetRouteSpeedPrefetchState()
             if isRouteRunning {
@@ -893,7 +890,6 @@ struct LocationSimulationView: View {
     }
 
     private func reloadMapForActualLocation() {
-        actualLocationReloadTask?.cancel()
         coordinate = nil
         routePlaybackCoordinate = nil
         routePlan = nil
@@ -902,16 +898,6 @@ struct LocationSimulationView: View {
         routePlaybackSamples = []
         position = .userLocation(fallback: .automatic)
         mapReloadID = UUID()
-
-        actualLocationReloadTask = Task { @MainActor in
-            defer { actualLocationReloadTask = nil }
-            try? await Task.sleep(for: .milliseconds(450))
-            guard !Task.isCancelled else { return }
-
-            if let actualLocation = await requestCurrentLocation() {
-                centerMap(on: actualLocation.coordinate, duration: 0.4)
-            }
-        }
     }
 
     private func centerMap(on coordinate: CLLocationCoordinate2D, duration: TimeInterval) {
