@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>StikDebug 需要访问当前位置，以便在地图上快速回到您的实际位置。</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>StikDebug 需要在位置模拟期间保持后台运行。</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

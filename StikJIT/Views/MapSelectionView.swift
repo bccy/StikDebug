@@ -386,6 +386,59 @@ final class LocationSearchCompleter: NSObject, ObservableObject, MKLocalSearchCo
     }
 }
 
+@MainActor
+final class CurrentLocationProvider: NSObject, ObservableObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+    private var completion: ((CLLocationCoordinate2D?) -> Void)?
+
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+    }
+
+    func requestCurrentLocation(completion: @escaping (CLLocationCoordinate2D?) -> Void) {
+        self.completion = completion
+
+        switch manager.authorizationStatus {
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        case .authorizedAlways, .authorizedWhenInUse:
+            manager.requestLocation()
+        default:
+            completion(nil)
+            self.completion = nil
+        }
+    }
+
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        Task { @MainActor in
+            let status = self.manager.authorizationStatus
+            if status == .authorizedAlways || status == .authorizedWhenInUse {
+                self.manager.requestLocation()
+            } else if status != .notDetermined {
+                completion?(nil)
+                completion = nil
+            }
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        let coordinate = locations.last?.coordinate
+        Task { @MainActor in
+            completion?(coordinate)
+            completion = nil
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        Task { @MainActor in
+            completion?(nil)
+            completion = nil
+        }
+    }
+}
+
 struct LocationSimulationView: View {
     // Serial queue: the location simulation helpers share process-wide state, so
     // serialising all calls avoids handle lifetime races.
@@ -409,6 +462,7 @@ struct LocationSimulationView: View {
 
     @State private var searchText = ""
     @StateObject private var searchCompleter = LocationSearchCompleter()
+    @StateObject private var currentLocationProvider = CurrentLocationProvider()
     @State private var showRouteSearch = false
     @State private var routeStartSelection: RouteSearchSelection?
     @State private var routeEndSelection: RouteSearchSelection?
@@ -512,6 +566,20 @@ struct LocationSimulationView: View {
         .foregroundStyle(.secondary)
     }
 
+    private var currentLocationButton: some View {
+        Button {
+            centerOnCurrentLocation()
+        } label: {
+            Image(systemName: "location.fill")
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: 44, height: 44)
+                .background(.ultraThinMaterial, in: Circle())
+                .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("回到当前位置")
+    }
+
     private var searchResultsListBase: some View {
         List(searchCompleter.results.prefix(5), id: \.self) { result in
             Button {
@@ -549,6 +617,8 @@ struct LocationSimulationView: View {
         ZStack(alignment: .bottom) {
             MapReader { proxy in
                 Map(position: $position) {
+                    UserAnnotation()
+
                     if hasRouteContext {
                         if let routePolyline {
                             MapPolyline(routePolyline)
@@ -593,6 +663,17 @@ struct LocationSimulationView: View {
                         )
                     }
                 }
+
+            VStack {
+                HStack {
+                    Spacer()
+                    currentLocationButton
+                }
+                .padding(.top, 64)
+                .padding(.trailing, 16)
+
+                Spacer()
+            }
 
             VStack(spacing: 0) {
                 if !searchCompleter.results.isEmpty {
@@ -727,6 +808,22 @@ struct LocationSimulationView: View {
         }
     }
 
+    private func centerOnCurrentLocation() {
+        currentLocationProvider.requestCurrentLocation { coordinate in
+            if let coordinate {
+                position = .region(
+                    MKCoordinateRegion(
+                        center: coordinate,
+                        latitudinalMeters: 1000,
+                        longitudinalMeters: 1000
+                    )
+                )
+            } else {
+                position = .userLocation(fallback: .automatic)
+            }
+        }
+    }
+
     @ViewBuilder
     private var pinControls: some View {
         if let coord = coordinate {
@@ -735,10 +832,12 @@ struct LocationSimulationView: View {
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 12) {
-                Button("停止", action: clear)
-                    .buttonStyle(.bordered)
-                    .tint(.red)
-                    .disabled(!pairingExists || isBusy || !hasActiveSimulation)
+                if hasActiveSimulation {
+                    Button("停止", action: clear)
+                        .buttonStyle(.bordered)
+                        .tint(.red)
+                        .disabled(!pairingExists || isBusy)
+                }
 
                 Button("模拟位置", action: simulate)
                     .buttonStyle(.borderedProminent)
@@ -778,10 +877,12 @@ struct LocationSimulationView: View {
             routeAttributionLink
 
             HStack(spacing: 12) {
-                Button("停止", action: clear)
-                    .buttonStyle(.bordered)
-                    .tint(.red)
-                    .disabled(!pairingExists || isBusy || !hasActiveSimulation)
+                if hasActiveSimulation {
+                    Button("停止", action: clear)
+                        .buttonStyle(.bordered)
+                        .tint(.red)
+                        .disabled(!pairingExists || isBusy)
+                }
 
                 Button("播放路线", action: simulateRoute)
                     .buttonStyle(.borderedProminent)
