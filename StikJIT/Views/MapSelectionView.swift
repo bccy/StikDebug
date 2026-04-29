@@ -50,81 +50,6 @@ private struct RoutePlaybackSample {
     let delayFromPrevious: TimeInterval
 }
 
-private enum LiquidGlassButtonRole {
-    case primary
-    case secondary
-    case destructive
-    case icon
-
-    var foregroundStyle: Color {
-        switch self {
-        case .primary:
-            return .white
-        case .secondary, .icon:
-            return .primary
-        case .destructive:
-            return .red
-        }
-    }
-
-    var fallbackTint: Color {
-        switch self {
-        case .primary:
-            return .blue.opacity(0.78)
-        case .secondary, .icon:
-            return .white.opacity(0.18)
-        case .destructive:
-            return .red.opacity(0.16)
-        }
-    }
-}
-
-private struct LiquidGlassButtonStyle: ButtonStyle {
-    let role: LiquidGlassButtonRole
-    let isCompact: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        LiquidGlassButtonBody(configuration: configuration, role: role, isCompact: isCompact)
-    }
-}
-
-private struct LiquidGlassButtonBody: View {
-    @Environment(\.isEnabled) private var isEnabled
-
-    let configuration: ButtonStyle.Configuration
-    let role: LiquidGlassButtonRole
-    let isCompact: Bool
-
-    var body: some View {
-        configuration.label
-            .font(.system(size: isCompact ? 16 : 15, weight: .semibold))
-            .foregroundStyle(role.foregroundStyle)
-            .padding(.horizontal, isCompact ? 0 : 16)
-            .frame(width: isCompact ? 44 : nil, height: 44)
-            .frame(minWidth: isCompact ? nil : 92)
-            .contentShape(Capsule())
-            .liquidGlassSurface(role: role, cornerRadius: 22)
-            .scaleEffect(configuration.isPressed ? 0.94 : 1)
-            .opacity(isEnabled ? (configuration.isPressed ? 0.82 : 1) : 0.42)
-            .saturation(isEnabled ? 1 : 0.35)
-            .animation(.spring(response: 0.24, dampingFraction: 0.78), value: configuration.isPressed)
-            .animation(.easeInOut(duration: 0.18), value: isEnabled)
-    }
-}
-
-private extension View {
-    func liquidGlassSurface(role: LiquidGlassButtonRole, cornerRadius: CGFloat) -> some View {
-        self
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .background(role.fallbackTint, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(.white.opacity(0.28), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.18), radius: 12, x: 0, y: 5)
-    }
-}
-
 private struct OpenStreetMapWay {
     let geometry: [CLLocationCoordinate2D]
     let speedLimitMetersPerSecond: CLLocationSpeed
@@ -557,7 +482,7 @@ struct LocationSimulationView: View {
 
     private var deviceIP: String {
         let stored = UserDefaults.standard.string(forKey: "customTargetIP") ?? ""
-        return stored.isEmpty ? "198.18.0.1" : stored
+        return stored.isEmpty ? "10.7.0.1" : stored
     }
 
     private var routePolyline: MKPolyline? {
@@ -633,17 +558,6 @@ struct LocationSimulationView: View {
         )
         .font(.caption2)
         .foregroundStyle(.secondary)
-    }
-
-    private var currentLocationButton: some View {
-        Button {
-            playButtonHaptic()
-            centerOnCurrentLocation()
-        } label: {
-            Image(systemName: "location.fill")
-        }
-        .buttonStyle(LiquidGlassButtonStyle(role: .icon, isCompact: true))
-        .accessibilityLabel("回到当前位置")
     }
 
     private var searchResultsListBase: some View {
@@ -749,16 +663,6 @@ struct LocationSimulationView: View {
                 .padding(.horizontal, 16)
             }
 
-            VStack {
-                HStack {
-                    Spacer()
-                    currentLocationButton
-                }
-                .padding(.top, 64)
-                .padding(.trailing, 16)
-
-                Spacer()
-            }
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -769,7 +673,6 @@ struct LocationSimulationView: View {
                 } label: {
                     Image(systemName: "bookmark.fill")
                 }
-                .buttonStyle(LiquidGlassButtonStyle(role: .icon, isCompact: true))
 
                 Button {
                     playButtonHaptic()
@@ -777,7 +680,6 @@ struct LocationSimulationView: View {
                 } label: {
                     Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
                 }
-                .buttonStyle(LiquidGlassButtonStyle(role: .icon, isCompact: true))
                 .disabled(isBusy || isRouteRunning)
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -920,7 +822,8 @@ struct LocationSimulationView: View {
                     } label: {
                         Text("停止")
                     }
-                        .buttonStyle(LiquidGlassButtonStyle(role: .destructive, isCompact: false))
+                        .buttonStyle(.bordered)
+                        .tint(.red)
                         .disabled(!pairingExists || isBusy)
                 }
 
@@ -930,7 +833,7 @@ struct LocationSimulationView: View {
                 } label: {
                     Text("模拟位置")
                 }
-                    .buttonStyle(LiquidGlassButtonStyle(role: .primary, isCompact: false))
+                    .buttonStyle(.borderedProminent)
                     .disabled(!pairingExists || isBusy || isLoadingRoute)
 
                 Button {
@@ -939,7 +842,8 @@ struct LocationSimulationView: View {
                 } label: {
                     Image(systemName: "bookmark")
                 }
-                .buttonStyle(LiquidGlassButtonStyle(role: .icon, isCompact: true))
+                .buttonStyle(.bordered)
+                .tint(.blue)
                 .disabled(isRouteRunning)
             }
         } else {
@@ -978,7 +882,8 @@ struct LocationSimulationView: View {
                     } label: {
                         Text("停止")
                     }
-                        .buttonStyle(LiquidGlassButtonStyle(role: .destructive, isCompact: false))
+                        .buttonStyle(.bordered)
+                        .tint(.red)
                         .disabled(!pairingExists || isBusy)
                 }
 
@@ -988,7 +893,7 @@ struct LocationSimulationView: View {
                 } label: {
                     Text("播放路线")
                 }
-                    .buttonStyle(LiquidGlassButtonStyle(role: .primary, isCompact: false))
+                    .buttonStyle(.borderedProminent)
                     .disabled(
                         !pairingExists ||
                         isBusy ||
@@ -1004,7 +909,7 @@ struct LocationSimulationView: View {
                 } label: {
                     Text("重置")
                 }
-                    .buttonStyle(LiquidGlassButtonStyle(role: .secondary, isCompact: false))
+                    .buttonStyle(.bordered)
                     .disabled(isBusy || isRouteRunning)
             }
         }
