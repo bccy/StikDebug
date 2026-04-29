@@ -117,7 +117,7 @@ final class JITEnableContext {
         let deviceIP = DeviceConnectionContext.targetIPAddress
         let parseResult = deviceIP.withCString { inet_pton(AF_INET, $0, &addr.sin_addr) }
         guard parseResult == 1 else {
-            throw makeError("Failed to parse target IP address.", code: -18)
+            throw makeError("无法解析目标 IP 地址。", code: -18)
         }
 
         var tunnel = TunnelHandles()
@@ -139,13 +139,13 @@ final class JITEnableContext {
         }
 
         if let ffiError {
-            throw error(from: ffiError, fallback: "Failed to create tunnel")
+            throw error(from: ffiError, fallback: "创建隧道失败")
         }
 
         guard tunnel.adapter != nil, tunnel.handshake != nil else {
             var incompleteTunnel = tunnel
             incompleteTunnel.free()
-            throw makeError("Tunnel was created without valid handles")
+            throw makeError("隧道已创建，但未返回有效句柄")
         }
 
         return tunnel

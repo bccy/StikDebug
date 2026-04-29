@@ -15,11 +15,11 @@ struct MainTabView: View {
             NavigationStack {
                 LocationSimulationView()
             }
-            .tabItem { Label("Location", systemImage: "location") }
+            .tabItem { Label("位置", systemImage: "location") }
             .tag("location")
 
             SettingsView()
-                .tabItem { Label("Settings", systemImage: "gearshape.fill") }
+                .tabItem { Label("设置", systemImage: "gearshape.fill") }
                 .tag("settings")
         }
     }

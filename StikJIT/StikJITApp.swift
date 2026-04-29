@@ -95,7 +95,7 @@ func startTunnelInBackground(showErrorUI: Bool = true) {
         }
         do {
             try JITEnableContext.shared.startTunnel()
-            LogManager.shared.addInfoLog("Tunnel connected successfully")
+            LogManager.shared.addInfoLog("隧道连接成功")
             pubTunnelConnected = true
         } catch {
             let err2 = error as NSError
@@ -106,24 +106,24 @@ func startTunnelInBackground(showErrorUI: Bool = true) {
                 if code == -9 {
                     do {
                         try PairingFileStore.remove()
-                        LogManager.shared.addInfoLog("Removed invalid pairing file")
+                        LogManager.shared.addInfoLog("已移除无效配对文件")
                     } catch {
-                        LogManager.shared.addErrorLog("Failed to remove invalid pairing file: \(error.localizedDescription)")
+                        LogManager.shared.addErrorLog("移除无效配对文件失败：\(error.localizedDescription)")
                     }
 
                     showAlert(
-                        title: "Invalid Pairing File",
-                        message: "The pairing file is invalid or expired. Please select a new pairing file.",
+                        title: "配对文件无效",
+                        message: "配对文件无效或已过期，请选择新的配对文件。",
                         showOk: true,
                         showTryAgain: false,
-                        primaryButtonText: "Select New File"
+                        primaryButtonText: "选择新文件"
                     ) { _ in
                         NotificationCenter.default.post(name: NSNotification.Name("ShowPairingFilePicker"), object: nil)
                     }
                 } else {
                     showAlert(
-                        title: "Connection Error",
-                        message: "\(error.localizedDescription)\n\nMake sure Wi‑Fi and LocalDevVPN are connected and that the device is reachable.",
+                        title: "连接错误",
+                        message: "\(error.localizedDescription)\n\n请确认 Wi‑Fi 和 LocalDevVPN 已连接，并且设备可访问。",
                         showOk: false,
                         showTryAgain: true
                     ) { shouldTryAgain in
@@ -151,18 +151,18 @@ public func showAlert(title: String, message: String, showOk: Bool, showTryAgain
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
 
         if showTryAgain {
-            alert.addAction(UIAlertAction(title: primaryButtonText ?? "Try Again", style: .default) { _ in
+            alert.addAction(UIAlertAction(title: primaryButtonText ?? "重试", style: .default) { _ in
                 completion?(true)
             })
-            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
+            alert.addAction(UIAlertAction(title: "取消", style: .cancel) { _ in
                 completion?(false)
             })
         } else if showOk {
-            alert.addAction(UIAlertAction(title: primaryButtonText ?? "OK", style: .default) { _ in
+            alert.addAction(UIAlertAction(title: primaryButtonText ?? "确定", style: .default) { _ in
                 completion?(true)
             })
         } else {
-             alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+             alert.addAction(UIAlertAction(title: "确定", style: .default) { _ in
                 completion?(true)
             })
         }

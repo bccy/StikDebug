@@ -42,8 +42,8 @@ final class LogManager: ObservableObject {
     ]
 
     private init() {
-        addInfoLog("StikJIT starting up")
-        addInfoLog("Initializing environment")
+        addInfoLog("StikJIT 正在启动")
+        addInfoLog("正在初始化环境")
     }
 
     func addLog(message: String, type: LogEntry.LogType) {

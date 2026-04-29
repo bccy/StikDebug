@@ -42,12 +42,12 @@ struct SettingsView: View {
                 }
 
                 // Pairing File
-                Section("Pairing File") {
+                Section("配对文件") {
                     Button { isShowingPairingFilePicker = true } label: {
-                        Label("Import Pairing File", systemImage: "doc.badge.plus")
+                        Label("导入配对文件", systemImage: "doc.badge.plus")
                     }
                     if showPairingFileMessage && !isImportingFile {
-                        Label("Imported successfully", systemImage: "checkmark.circle.fill")
+                        Label("导入成功", systemImage: "checkmark.circle.fill")
                             .foregroundStyle(.green)
                     }
                 }
@@ -56,8 +56,8 @@ struct SettingsView: View {
                 Section {
                     Toggle(isOn: $keepAliveAudio) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Silent Audio")
-                            Text("Plays inaudible audio so iOS keeps the app running.")
+                            Text("静音音频")
+                            Text("播放无声频以让 iOS 持续保留应用运行。")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }
@@ -68,8 +68,8 @@ struct SettingsView: View {
 
                     Toggle(isOn: $keepAliveLocation) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Background Location")
-                            Text("Uses low-accuracy location to stay alive when an activity needs it.")
+                            Text("后台定位")
+                            Text("在需要保持活动时使用低精度定位维持后台运行。")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }
@@ -77,13 +77,13 @@ struct SettingsView: View {
                         if !enabled { BackgroundLocationManager.shared.stop() }
                     }
                 } header: {
-                    Text("Background Keep-Alive")
+                    Text("后台保活")
                 }
 
                 // Advanced
-                Section("Advanced") {
+                Section("高级") {
                     HStack {
-                        Text("Target Device IP")
+                        Text("目标设备 IP")
                         Spacer()
                         TextField("10.7.0.1", text: $customTargetIP)
                                 .multilineTextAlignment(.trailing)
@@ -91,29 +91,29 @@ struct SettingsView: View {
                                 .submitLabel(.done)
                     }
                     Button { openAppFolder() } label: {
-                        Label("App Folder", systemImage: "folder")
+                        Label("应用文件夹", systemImage: "folder")
                     }.foregroundStyle(.primary)
                 }
 
                 // Help
-                Section("Help") {
+                Section("帮助") {
                     Link(destination: URL(string: "https://github.com/StephenDev0/StikDebug-Guide/blob/main/pairing_file.md")!) {
-                        Label("Pairing File Guide", systemImage: "questionmark.circle")
+                        Label("配对文件指南", systemImage: "questionmark.circle")
                     }
                     Link(destination: URL(string: "https://apps.apple.com/us/app/localdevvpn/id6755608044")!) {
-                        Label("Download LocalDevVPN", systemImage: "arrow.down.circle")
+                        Label("下载 LocalDevVPN", systemImage: "arrow.down.circle")
                     }
                 }
 
                 // Version footer
                 Section {
-                    Text("Version \(appVersion) • iOS \(UIDevice.current.systemVersion)")
+                    Text("版本 \(appVersion) • iOS \(UIDevice.current.systemVersion)")
                         .font(.footnote).foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .listRowBackground(Color.clear)
                 }
             }
-            .navigationTitle("Settings")
+            .navigationTitle("设置")
         }
         .fileImporter(
             isPresented: $isShowingPairingFilePicker,
@@ -165,7 +165,7 @@ struct SettingsView: View {
     private var importBusyOverlay: some View {
         Color.black.opacity(0.35).ignoresSafeArea()
         VStack(spacing: 12) {
-            ProgressView("Processing pairing file…")
+            ProgressView("正在处理配对文件…")
             VStack(spacing: 8) {
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
