@@ -55,6 +55,9 @@ struct HeartbeatApp: App {
     var body: some Scene {
         WindowGroup {
             MainTabView()
+                .task {
+                    _ = await BuiltInVPNManager.shared.ensureConnected()
+                }
                 .onChange(of: scenePhase) { _, newPhase in
                     handleScenePhaseChange(newPhase)
                 }
@@ -94,6 +97,18 @@ func startTunnelInBackground(showErrorUI: Bool = true) {
             }
         }
         do {
+            let vpnSemaphore = DispatchSemaphore(value: 0)
+            var didConnectVPN = false
+            Task { @MainActor in
+                didConnectVPN = await BuiltInVPNManager.shared.ensureConnected()
+                vpnSemaphore.signal()
+            }
+            vpnSemaphore.wait()
+
+            if !didConnectVPN {
+                LogManager.shared.addErrorLog("内置 VPN 未连接，继续尝试设备隧道")
+            }
+
             try JITEnableContext.shared.startTunnel()
             LogManager.shared.addInfoLog("隧道连接成功")
             pubTunnelConnected = true

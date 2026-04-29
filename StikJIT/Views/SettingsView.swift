@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage("keepAliveLocation") private var keepAliveLocation = true
     @AppStorage("customTargetIP") private var customTargetIP = ""
 
+    @StateObject private var builtInVPN = BuiltInVPNManager.shared
     @State private var isShowingPairingFilePicker = false
     @State private var showPairingFileMessage = false
     @State private var isImportingFile = false
@@ -19,6 +20,23 @@ struct SettingsView: View {
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }
+
+    private var vpnStatusText: String {
+        switch builtInVPN.status {
+        case .connected:
+            return "已连接"
+        case .connecting, .reasserting:
+            return "连接中"
+        case .disconnecting:
+            return "断开中"
+        case .disconnected:
+            return "未连接"
+        case .invalid:
+            return "未配置"
+        @unknown default:
+            return "未知"
+        }
     }
 
     var body: some View {
@@ -49,6 +67,25 @@ struct SettingsView: View {
                     if showPairingFileMessage && !isImportingFile {
                         Label("导入成功", systemImage: "checkmark.circle.fill")
                             .foregroundStyle(.green)
+                    }
+                }
+
+                Section("内置 VPN") {
+                    HStack {
+                        Label("StikDebug Loopback", systemImage: "network")
+                        Spacer()
+                        Text(vpnStatusText)
+                            .foregroundStyle(.secondary)
+                    }
+                    Button {
+                        Task { _ = await builtInVPN.ensureConnected() }
+                    } label: {
+                        Label("连接内置 VPN", systemImage: "lock.shield")
+                    }
+                    Button(role: .destructive) {
+                        builtInVPN.stop()
+                    } label: {
+                        Label("断开内置 VPN", systemImage: "lock.slash")
                     }
                 }
 
@@ -100,8 +137,8 @@ struct SettingsView: View {
                     Link(destination: URL(string: "https://github.com/StephenDev0/StikDebug-Guide/blob/main/pairing_file.md")!) {
                         Label("配对文件指南", systemImage: "questionmark.circle")
                     }
-                    Link(destination: URL(string: "https://apps.apple.com/us/app/localdevvpn/id6755608044")!) {
-                        Label("下载 LocalDevVPN", systemImage: "arrow.down.circle")
+                    Link(destination: URL(string: "https://github.com/jkcoxson/LocalDevVPN")!) {
+                        Label("内置 VPN 基于 LocalDevVPN", systemImage: "network.badge.shield.half.filled")
                     }
                 }
 
