@@ -80,12 +80,22 @@ private enum LiquidGlassButtonRole {
 }
 
 private struct LiquidGlassButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-
     let role: LiquidGlassButtonRole
     let isCompact: Bool
 
     func makeBody(configuration: Configuration) -> some View {
+        LiquidGlassButtonBody(configuration: configuration, role: role, isCompact: isCompact)
+    }
+}
+
+private struct LiquidGlassButtonBody: View {
+    @Environment(\.isEnabled) private var isEnabled
+
+    let configuration: ButtonStyle.Configuration
+    let role: LiquidGlassButtonRole
+    let isCompact: Bool
+
+    var body: some View {
         configuration.label
             .font(.system(size: isCompact ? 16 : 15, weight: .semibold))
             .foregroundStyle(role.foregroundStyle)
@@ -99,6 +109,10 @@ private struct LiquidGlassButtonStyle: ButtonStyle {
             .saturation(isEnabled ? 1 : 0.35)
             .animation(.spring(response: 0.24, dampingFraction: 0.78), value: configuration.isPressed)
             .animation(.easeInOut(duration: 0.18), value: isEnabled)
+            .onChange(of: configuration.isPressed) { _, isPressed in
+                guard isPressed, isEnabled else { return }
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
     }
 }
 
