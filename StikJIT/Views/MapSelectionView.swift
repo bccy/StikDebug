@@ -109,10 +109,6 @@ private struct LiquidGlassButtonBody: View {
             .saturation(isEnabled ? 1 : 0.35)
             .animation(.spring(response: 0.24, dampingFraction: 0.78), value: configuration.isPressed)
             .animation(.easeInOut(duration: 0.18), value: isEnabled)
-            .onChange(of: configuration.isPressed) { _, isPressed in
-                guard isPressed, isEnabled else { return }
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            }
     }
 }
 
@@ -512,7 +508,9 @@ struct LocationSimulationView: View {
     // Serial queue: the location simulation helpers share process-wide state, so
     // serialising all calls avoids handle lifetime races.
     private static let locationQueue = DispatchQueue(label: "com.stik.location-sim",
-                                                    qos: .userInitiated)
+                                                     qos: .userInitiated)
+    private static let activeSimulationLatitudeKey = "activeSimulationLatitude"
+    private static let activeSimulationLongitudeKey = "activeSimulationLongitude"
 
     @State private var coordinate: CLLocationCoordinate2D?
     @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
@@ -639,6 +637,7 @@ struct LocationSimulationView: View {
 
     private var currentLocationButton: some View {
         Button {
+            playButtonHaptic()
             centerOnCurrentLocation()
         } label: {
             Image(systemName: "location.fill")
@@ -731,17 +730,6 @@ struct LocationSimulationView: View {
                     }
                 }
 
-            VStack {
-                HStack {
-                    Spacer()
-                    currentLocationButton
-                }
-                .padding(.top, 64)
-                .padding(.trailing, 16)
-
-                Spacer()
-            }
-
             VStack(spacing: 0) {
                 if !searchCompleter.results.isEmpty {
                     searchResultsList
@@ -760,11 +748,23 @@ struct LocationSimulationView: View {
                 .padding(.horizontal, 16)
                 .padding(.horizontal, 16)
             }
+
+            VStack {
+                HStack {
+                    Spacer()
+                    currentLocationButton
+                }
+                .padding(.top, 64)
+                .padding(.trailing, 16)
+
+                Spacer()
+            }
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarLeading) {
                 Button {
+                    playButtonHaptic()
                     showBookmarks = true
                 } label: {
                     Image(systemName: "bookmark.fill")
@@ -772,6 +772,7 @@ struct LocationSimulationView: View {
                 .buttonStyle(LiquidGlassButtonStyle(role: .icon, isCompact: true))
 
                 Button {
+                    playButtonHaptic()
                     showRouteSearch = true
                 } label: {
                     Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
@@ -821,14 +822,16 @@ struct LocationSimulationView: View {
         }
         .onAppear {
             loadBookmarks()
+            restoreActiveSimulationState()
         }
         .onDisappear {
             routeLoadTask?.cancel()
             routeLoadTask = nil
             routeSpeedPrefetchTask?.cancel()
             resetRouteSpeedPrefetchState()
-            cancelRoutePlayback(resetMarker: true)
-            stopResendLoop()
+            if isRouteRunning {
+                cancelRoutePlayback(resetMarker: false)
+            }
             if backgroundTaskID != .invalid {
                 BackgroundLocationManager.shared.requestStop()
             }
@@ -889,8 +892,17 @@ struct LocationSimulationView: View {
                 )
             } else {
                 position = .userLocation(fallback: .automatic)
+                alertTitle = "无法获取当前位置"
+                alertMessage = "请确认已允许 StikDebug 访问定位，并在系统设置中开启定位服务。"
+                showAlert = true
             }
         }
+    }
+
+    private func playButtonHaptic() {
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.prepare()
+        generator.impactOccurred(intensity: 0.85)
     }
 
     @ViewBuilder
@@ -902,16 +914,27 @@ struct LocationSimulationView: View {
 
             HStack(spacing: 12) {
                 if hasActiveSimulation {
-                    Button("停止", action: clear)
+                    Button {
+                        playButtonHaptic()
+                        clear()
+                    } label: {
+                        Text("停止")
+                    }
                         .buttonStyle(LiquidGlassButtonStyle(role: .destructive, isCompact: false))
                         .disabled(!pairingExists || isBusy)
                 }
 
-                Button("模拟位置", action: simulate)
+                Button {
+                    playButtonHaptic()
+                    simulate()
+                } label: {
+                    Text("模拟位置")
+                }
                     .buttonStyle(LiquidGlassButtonStyle(role: .primary, isCompact: false))
                     .disabled(!pairingExists || isBusy || isLoadingRoute)
 
                 Button {
+                    playButtonHaptic()
                     showSaveBookmark = true
                 } label: {
                     Image(systemName: "bookmark")
@@ -949,12 +972,22 @@ struct LocationSimulationView: View {
 
             HStack(spacing: 12) {
                 if hasActiveSimulation {
-                    Button("停止", action: clear)
+                    Button {
+                        playButtonHaptic()
+                        clear()
+                    } label: {
+                        Text("停止")
+                    }
                         .buttonStyle(LiquidGlassButtonStyle(role: .destructive, isCompact: false))
                         .disabled(!pairingExists || isBusy)
                 }
 
-                Button("播放路线", action: simulateRoute)
+                Button {
+                    playButtonHaptic()
+                    simulateRoute()
+                } label: {
+                    Text("播放路线")
+                }
                     .buttonStyle(LiquidGlassButtonStyle(role: .primary, isCompact: false))
                     .disabled(
                         !pairingExists ||
@@ -965,7 +998,12 @@ struct LocationSimulationView: View {
                         routePlaybackSamples.isEmpty
                     )
 
-                Button("重置", action: resetRouteSelection)
+                Button {
+                    playButtonHaptic()
+                    resetRouteSelection()
+                } label: {
+                    Text("重置")
+                }
                     .buttonStyle(LiquidGlassButtonStyle(role: .secondary, isCompact: false))
                     .disabled(isBusy || isRouteRunning)
             }
@@ -1013,7 +1051,8 @@ struct LocationSimulationView: View {
             ) {
                 beginBackgroundTask()
                 BackgroundLocationManager.shared.requestStart()
-                simulatedCoordinate = nil
+                simulatedCoordinate = firstCoordinate
+                persistActiveSimulation(firstCoordinate)
                 routePlaybackCoordinate = firstCoordinate
                 startRoutePlayback()
             }
@@ -1066,12 +1105,15 @@ struct LocationSimulationView: View {
         isPrefetchingRouteSpeeds = false
         routeSpeedPrefetchProgress = 0.0
         cancelRoutePlayback(resetMarker: true)
-        stopResendLoop()
         runLocationCommand(
             errorTitle: "清除失败",
             errorMessage: { code in "无法清除模拟位置（错误 \(code)）。" },
             operation: clear_simulated_location
         ) {
+            stopResendTimer()
+            simulatedCoordinate = nil
+            clearPersistedActiveSimulation()
+            centerOnCurrentLocation()
             endBackgroundTask()
             BackgroundLocationManager.shared.requestStop()
         }
@@ -1090,6 +1132,7 @@ struct LocationSimulationView: View {
 
     private func startResendLoop(with coordinate: CLLocationCoordinate2D) {
         simulatedCoordinate = coordinate
+        persistActiveSimulation(coordinate)
         resendTimer?.invalidate()
         resendTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { _ in
             guard let simulatedCoordinate else { return }
@@ -1100,9 +1143,42 @@ struct LocationSimulationView: View {
     }
 
     private func stopResendLoop() {
+        stopResendTimer()
+        simulatedCoordinate = nil
+        clearPersistedActiveSimulation()
+    }
+
+    private func stopResendTimer() {
         resendTimer?.invalidate()
         resendTimer = nil
-        simulatedCoordinate = nil
+    }
+
+    private func persistActiveSimulation(_ coordinate: CLLocationCoordinate2D) {
+        UserDefaults.standard.set(coordinate.latitude, forKey: Self.activeSimulationLatitudeKey)
+        UserDefaults.standard.set(coordinate.longitude, forKey: Self.activeSimulationLongitudeKey)
+    }
+
+    private func clearPersistedActiveSimulation() {
+        UserDefaults.standard.removeObject(forKey: Self.activeSimulationLatitudeKey)
+        UserDefaults.standard.removeObject(forKey: Self.activeSimulationLongitudeKey)
+    }
+
+    private func restoreActiveSimulationState() {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: Self.activeSimulationLatitudeKey) != nil,
+              defaults.object(forKey: Self.activeSimulationLongitudeKey) != nil else {
+            return
+        }
+
+        let restoredCoordinate = CLLocationCoordinate2D(
+            latitude: defaults.double(forKey: Self.activeSimulationLatitudeKey),
+            longitude: defaults.double(forKey: Self.activeSimulationLongitudeKey)
+        )
+        simulatedCoordinate = restoredCoordinate
+        coordinate = coordinate ?? restoredCoordinate
+        if resendTimer == nil {
+            startResendLoop(with: restoredCoordinate)
+        }
     }
 
     private func cancelRoutePlayback(resetMarker: Bool) {
