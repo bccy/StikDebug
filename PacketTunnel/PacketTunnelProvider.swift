@@ -8,10 +8,10 @@
 import NetworkExtension
 
 final class PacketTunnelProvider: NEPacketTunnelProvider {
-    private var tunnelDeviceIP = "198.18.0.2"
-    private var tunnelFakeIP = "198.18.0.1"
+    private var tunnelDeviceIP = "10.7.0.0"
+    private var tunnelFakeIP = "10.7.0.1"
     private var tunnelSubnetMask = "255.255.255.0"
-    private var tunnelRouteIP = "198.18.0.0"
+    private var tunnelRouteIP = "10.7.0.0"
 
     private var deviceIPValue: UInt32 = 0
     private var fakeIPValue: UInt32 = 0
