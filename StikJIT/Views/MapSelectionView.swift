@@ -891,6 +891,14 @@ struct LocationSimulationView: View {
     }
 
     private func centerOnActualLocationAfterClearing(previousSimulatedCoordinate: CLLocationCoordinate2D?) {
+        coordinate = nil
+        routePlaybackCoordinate = nil
+        routePlan = nil
+        routeStartSelection = nil
+        routeEndSelection = nil
+        routePlaybackSamples = []
+        position = .userLocation(fallback: .automatic)
+
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(900))
 
@@ -898,13 +906,15 @@ struct LocationSimulationView: View {
                 let actualCoordinate = await requestCurrentLocation()
                 if let actualCoordinate,
                    (!isStaleClearedLocation(actualCoordinate, previousSimulatedCoordinate: previousSimulatedCoordinate) || attempt == 4) {
-                    position = .region(
-                        MKCoordinateRegion(
-                            center: actualCoordinate,
-                            latitudinalMeters: 1000,
-                            longitudinalMeters: 1000
+                    withAnimation(.easeInOut(duration: 0.45)) {
+                        position = .region(
+                            MKCoordinateRegion(
+                                center: actualCoordinate,
+                                latitudinalMeters: 1000,
+                                longitudinalMeters: 1000
+                            )
                         )
-                    )
+                    }
                     return
                 }
 
@@ -1148,6 +1158,7 @@ struct LocationSimulationView: View {
 
     private func clear() {
         guard pairingExists, !isBusy else { return }
+        let previousSimulatedCoordinate = routePlaybackCoordinate ?? simulatedCoordinate
         routeLoadTask?.cancel()
         routeLoadTask = nil
         routeSpeedPrefetchTask?.cancel()
@@ -1163,7 +1174,6 @@ struct LocationSimulationView: View {
             errorMessage: { code in "无法清除模拟位置（错误 \(code)）。" },
             operation: clear_simulated_location
         ) {
-            let previousSimulatedCoordinate = simulatedCoordinate ?? routePlaybackCoordinate
             stopResendTimer()
             simulatedCoordinate = nil
             clearPersistedActiveSimulation()
