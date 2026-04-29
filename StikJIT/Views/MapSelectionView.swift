@@ -389,6 +389,7 @@ final class CurrentLocationProvider: NSObject, ObservableObject, CLLocationManag
     }
 
     func requestCurrentLocation(completion: @escaping (CLLocationCoordinate2D?) -> Void) {
+        self.completion?(nil)
         self.completion = completion
 
         switch manager.authorizationStatus {
@@ -462,6 +463,7 @@ struct LocationSimulationView: View {
                                                      qos: .userInitiated)
     private static let activeSimulationLatitudeKey = "activeSimulationLatitude"
     private static let activeSimulationLongitudeKey = "activeSimulationLongitude"
+    private static let staleLocationDistanceThreshold: CLLocationDistance = 20
 
     @State private var coordinate: CLLocationCoordinate2D?
     @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
@@ -888,6 +890,46 @@ struct LocationSimulationView: View {
         }
     }
 
+    private func centerOnActualLocationAfterClearing(previousSimulatedCoordinate: CLLocationCoordinate2D?) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(900))
+
+            for attempt in 0..<5 {
+                let actualCoordinate = await requestCurrentLocation()
+                if let actualCoordinate,
+                   (!isStaleClearedLocation(actualCoordinate, previousSimulatedCoordinate: previousSimulatedCoordinate) || attempt == 4) {
+                    position = .region(
+                        MKCoordinateRegion(
+                            center: actualCoordinate,
+                            latitudinalMeters: 1000,
+                            longitudinalMeters: 1000
+                        )
+                    )
+                    return
+                }
+
+                try? await Task.sleep(for: .milliseconds(700))
+            }
+
+            position = .userLocation(fallback: .automatic)
+        }
+    }
+
+    private func requestCurrentLocation() async -> CLLocationCoordinate2D? {
+        await withCheckedContinuation { continuation in
+            currentLocationProvider.requestCurrentLocation { coordinate in
+                continuation.resume(returning: coordinate)
+            }
+        }
+    }
+
+    private func isStaleClearedLocation(_ coordinate: CLLocationCoordinate2D, previousSimulatedCoordinate: CLLocationCoordinate2D?) -> Bool {
+        guard let previousSimulatedCoordinate else { return false }
+        let current = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        let previous = CLLocation(latitude: previousSimulatedCoordinate.latitude, longitude: previousSimulatedCoordinate.longitude)
+        return current.distance(from: previous) < Self.staleLocationDistanceThreshold
+    }
+
     private func playButtonHaptic() {
         let generator = UIImpactFeedbackGenerator(style: .medium)
         generator.prepare()
@@ -1121,10 +1163,11 @@ struct LocationSimulationView: View {
             errorMessage: { code in "无法清除模拟位置（错误 \(code)）。" },
             operation: clear_simulated_location
         ) {
+            let previousSimulatedCoordinate = simulatedCoordinate ?? routePlaybackCoordinate
             stopResendTimer()
             simulatedCoordinate = nil
             clearPersistedActiveSimulation()
-            centerOnCurrentLocation()
+            centerOnActualLocationAfterClearing(previousSimulatedCoordinate: previousSimulatedCoordinate)
             endBackgroundTask()
             BackgroundLocationManager.shared.requestStop()
         }
