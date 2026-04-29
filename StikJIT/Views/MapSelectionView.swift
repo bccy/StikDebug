@@ -467,6 +467,7 @@ struct LocationSimulationView: View {
     @State private var coordinate: CLLocationCoordinate2D?
     @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var mapReloadID = UUID()
+    @State private var isMapVisible = true
 
     @State private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
     @State private var resendTimer: Timer?
@@ -687,43 +688,7 @@ struct LocationSimulationView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            MapReader { proxy in
-                Map(position: $position) {
-                    UserAnnotation()
-
-                    if hasRouteContext {
-                        if let routePolyline {
-                            MapPolyline(routePolyline)
-                                .stroke(.blue.opacity(0.8), lineWidth: 5)
-                        }
-                        if let routeStartCoordinate {
-                            Marker("起点", coordinate: routeStartCoordinate)
-                                .tint(.green)
-                        }
-                        if let routeEndCoordinate {
-                            Marker("终点", coordinate: routeEndCoordinate)
-                                .tint(.red)
-                        }
-                        if let routePlaybackCoordinate {
-                            Marker("当前位置", coordinate: routePlaybackCoordinate)
-                                .tint(.blue)
-                        }
-                    } else if let coordinate {
-                        Marker("标记", coordinate: coordinate)
-                            .tint(.red)
-                    }
-                }
-                .mapStyle(.standard(elevation: .realistic))
-                .onTapGesture { point in
-                    if let loc = proxy.convert(point, from: .local) {
-                        applySelection(loc)
-                    }
-                }
-                .mapControls {
-                    MapCompass()
-                }
-                .id(mapReloadID)
-            }
+            mapLayer
                 .ignoresSafeArea()
                 .onChange(of: coordinate.map(CoordinateSnapshot.init)) { _, new in
                     if let new {
@@ -838,6 +803,51 @@ struct LocationSimulationView: View {
         }
     }
 
+    @ViewBuilder
+    private var mapLayer: some View {
+        if isMapVisible {
+            MapReader { proxy in
+                Map(position: $position) {
+                    UserAnnotation()
+
+                    if hasRouteContext {
+                        if let routePolyline {
+                            MapPolyline(routePolyline)
+                                .stroke(.blue.opacity(0.8), lineWidth: 5)
+                        }
+                        if let routeStartCoordinate {
+                            Marker("起点", coordinate: routeStartCoordinate)
+                                .tint(.green)
+                        }
+                        if let routeEndCoordinate {
+                            Marker("终点", coordinate: routeEndCoordinate)
+                                .tint(.red)
+                        }
+                        if let routePlaybackCoordinate {
+                            Marker("当前位置", coordinate: routePlaybackCoordinate)
+                                .tint(.blue)
+                        }
+                    } else if let coordinate {
+                        Marker("标记", coordinate: coordinate)
+                            .tint(.red)
+                    }
+                }
+                .mapStyle(.standard(elevation: .realistic))
+                .onTapGesture { point in
+                    if let loc = proxy.convert(point, from: .local) {
+                        applySelection(loc)
+                    }
+                }
+                .mapControls {
+                    MapCompass()
+                }
+            }
+            .id(mapReloadID)
+        } else {
+            Color.clear
+        }
+    }
+
     // MARK: - Bookmarks
 
     private func loadBookmarks() {
@@ -903,8 +913,14 @@ struct LocationSimulationView: View {
         routeStartSelection = nil
         routeEndSelection = nil
         routePlaybackSamples = []
-        position = .userLocation(fallback: .automatic)
-        mapReloadID = UUID()
+
+        isMapVisible = false
+        Task { @MainActor in
+            await Task.yield()
+            position = .userLocation(fallback: .automatic)
+            mapReloadID = UUID()
+            isMapVisible = true
+        }
     }
 
     private func centerMap(on coordinate: CLLocationCoordinate2D, duration: TimeInterval) {
