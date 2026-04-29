@@ -464,6 +464,8 @@ struct LocationSimulationView: View {
     private static let activeSimulationLatitudeKey = "activeSimulationLatitude"
     private static let activeSimulationLongitudeKey = "activeSimulationLongitude"
     private static let staleLocationDistanceThreshold: CLLocationDistance = 20
+    private static let actualLocationRecoveryAttempts = 10
+    private static let actualLocationRecoveryRetryDelay: Duration = .milliseconds(300)
 
     @State private var coordinate: CLLocationCoordinate2D?
     @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
@@ -474,6 +476,7 @@ struct LocationSimulationView: View {
     @State private var routeSpeedPrefetchTask: Task<Void, Never>?
     @State private var routeSpeedProgressTask: Task<Void, Never>?
     @State private var routePlaybackTask: Task<Void, Never>?
+    @State private var actualLocationRecoveryTask: Task<Void, Never>?
     @State private var isBusy = false
     @State private var isLoadingRoute = false
     @State private var isPrefetchingRouteSpeeds = false
@@ -818,6 +821,8 @@ struct LocationSimulationView: View {
         .onDisappear {
             routeLoadTask?.cancel()
             routeLoadTask = nil
+            actualLocationRecoveryTask?.cancel()
+            actualLocationRecoveryTask = nil
             routeSpeedPrefetchTask?.cancel()
             resetRouteSpeedPrefetchState()
             if isRouteRunning {
@@ -874,13 +879,7 @@ struct LocationSimulationView: View {
     private func centerOnCurrentLocation() {
         currentLocationProvider.requestCurrentLocation { coordinate in
             if let coordinate {
-                position = .region(
-                    MKCoordinateRegion(
-                        center: coordinate,
-                        latitudinalMeters: 1000,
-                        longitudinalMeters: 1000
-                    )
-                )
+                centerMap(on: coordinate, duration: 0.35)
             } else {
                 position = .userLocation(fallback: .automatic)
                 alertTitle = "无法获取当前位置"
@@ -891,37 +890,58 @@ struct LocationSimulationView: View {
     }
 
     private func centerOnActualLocationAfterClearing(previousSimulatedCoordinate: CLLocationCoordinate2D?) {
+        actualLocationRecoveryTask?.cancel()
         coordinate = nil
         routePlaybackCoordinate = nil
         routePlan = nil
         routeStartSelection = nil
         routeEndSelection = nil
         routePlaybackSamples = []
-        position = .userLocation(fallback: .automatic)
+        withAnimation(.easeInOut(duration: 0.25)) {
+            position = .userLocation(fallback: .automatic)
+        }
 
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(900))
+        actualLocationRecoveryTask = Task { @MainActor in
+            defer { actualLocationRecoveryTask = nil }
 
-            for attempt in 0..<5 {
-                let actualCoordinate = await requestCurrentLocation()
-                if let actualCoordinate,
-                   (!isStaleClearedLocation(actualCoordinate, previousSimulatedCoordinate: previousSimulatedCoordinate) || attempt == 4) {
-                    withAnimation(.easeInOut(duration: 0.45)) {
-                        position = .region(
-                            MKCoordinateRegion(
-                                center: actualCoordinate,
-                                latitudinalMeters: 1000,
-                                longitudinalMeters: 1000
-                            )
-                        )
-                    }
+            for attempt in 0..<Self.actualLocationRecoveryAttempts {
+                guard !Task.isCancelled else { return }
+
+                if let actualCoordinate = await requestCurrentLocation(),
+                   shouldUseRecoveredActualLocation(
+                    actualCoordinate,
+                    previousSimulatedCoordinate: previousSimulatedCoordinate,
+                    attempt: attempt
+                   ) {
+                    centerMap(on: actualCoordinate, duration: 0.45)
                     return
                 }
 
-                try? await Task.sleep(for: .milliseconds(700))
+                try? await Task.sleep(for: Self.actualLocationRecoveryRetryDelay)
             }
 
             position = .userLocation(fallback: .automatic)
+        }
+    }
+
+    private func shouldUseRecoveredActualLocation(
+        _ coordinate: CLLocationCoordinate2D,
+        previousSimulatedCoordinate: CLLocationCoordinate2D?,
+        attempt: Int
+    ) -> Bool {
+        !isStaleClearedLocation(coordinate, previousSimulatedCoordinate: previousSimulatedCoordinate) ||
+        attempt == Self.actualLocationRecoveryAttempts - 1
+    }
+
+    private func centerMap(on coordinate: CLLocationCoordinate2D, duration: TimeInterval) {
+        withAnimation(.easeInOut(duration: duration)) {
+            position = .region(
+                MKCoordinateRegion(
+                    center: coordinate,
+                    latitudinalMeters: 1000,
+                    longitudinalMeters: 1000
+                )
+            )
         }
     }
 
