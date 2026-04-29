@@ -75,6 +75,11 @@ struct SettingsView: View {
                     Button { isShowingPairingFilePicker = true } label: {
                         Label(hasPairingFile ? "重新导入配对文件" : "导入配对文件", systemImage: "doc.badge.plus")
                     }
+                    if hasPairingFile {
+                        ShareLink(item: PairingFileStore.prepareURL()) {
+                            Label("导出配对文件", systemImage: "square.and.arrow.up")
+                        }
+                    }
                     if showPairingFileMessage && !isImportingFile {
                         Label("导入成功", systemImage: "checkmark.circle.fill")
                             .foregroundStyle(.green)
@@ -83,20 +88,24 @@ struct SettingsView: View {
 
                 Section("虚拟定位服务") {
                     HStack {
-                        Label("StikDebug 虚拟定位服务", systemImage: "location.viewfinder")
+                        Label("虚拟定位服务", systemImage: "location.viewfinder")
                         Spacer()
                         Text(vpnStatusText)
                             .foregroundStyle(.secondary)
                     }
-                    Button {
-                        Task { _ = await builtInVPN.ensureConnected() }
-                    } label: {
-                        Label("连接定位服务", systemImage: "lock.shield")
-                    }
-                    Button(role: .destructive) {
-                        builtInVPN.stop()
-                    } label: {
-                        Label("断开定位服务", systemImage: "lock.slash")
+
+                    if builtInVPN.status == .connected || builtInVPN.status == .connecting || builtInVPN.status == .reasserting {
+                        Button(role: .destructive) {
+                            builtInVPN.stop()
+                        } label: {
+                            Label("断开定位服务", systemImage: "lock.slash")
+                        }
+                    } else {
+                        Button {
+                            Task { _ = await builtInVPN.ensureConnected() }
+                        } label: {
+                            Label("连接定位服务", systemImage: "lock.shield")
+                        }
                     }
                 }
 
@@ -147,6 +156,9 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("设置")
+            .task {
+                _ = await builtInVPN.refreshStatus()
+            }
         }
         .fileImporter(
             isPresented: $isShowingPairingFilePicker,
