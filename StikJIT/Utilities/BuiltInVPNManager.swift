@@ -46,6 +46,13 @@ final class BuiltInVPNManager: ObservableObject {
         status == .connected
     }
 
+    func refreshStatus() async -> NEVPNStatus {
+        await ensurePreferencesLoaded()
+        let currentStatus = manager?.connection.status ?? .invalid
+        status = currentStatus
+        return currentStatus
+    }
+
     func ensureConnected(timeout: TimeInterval = 8) async -> Bool {
         await ensurePreferencesLoaded()
 

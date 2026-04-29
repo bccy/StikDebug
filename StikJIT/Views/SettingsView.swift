@@ -10,7 +10,6 @@ struct SettingsView: View {
 
     @AppStorage("keepAliveAudio") private var keepAliveAudio = true
     @AppStorage("keepAliveLocation") private var keepAliveLocation = true
-    @AppStorage("customTargetIP") private var customTargetIP = ""
 
     @StateObject private var builtInVPN = BuiltInVPNManager.shared
     @State private var isShowingPairingFilePicker = false
@@ -20,6 +19,10 @@ struct SettingsView: View {
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }
+
+    private var hasPairingFile: Bool {
+        FileManager.default.fileExists(atPath: PairingFileStore.prepareURL().path)
     }
 
     private var vpnStatusText: String {
@@ -61,8 +64,16 @@ struct SettingsView: View {
 
                 // Pairing File
                 Section("配对文件") {
+                    HStack {
+                        Label(hasPairingFile ? "已导入配对文件" : "未导入配对文件", systemImage: hasPairingFile ? "checkmark.seal.fill" : "exclamationmark.triangle")
+                            .foregroundStyle(hasPairingFile ? .green : .orange)
+                        Spacer()
+                    }
+                    Text(hasPairingFile ? "配对文件已准备就绪，可用于连接设备和模拟位置。" : "请先导入配对文件，否则无法连接设备。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     Button { isShowingPairingFilePicker = true } label: {
-                        Label("导入配对文件", systemImage: "doc.badge.plus")
+                        Label(hasPairingFile ? "重新导入配对文件" : "导入配对文件", systemImage: "doc.badge.plus")
                     }
                     if showPairingFileMessage && !isImportingFile {
                         Label("导入成功", systemImage: "checkmark.circle.fill")
@@ -70,9 +81,9 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("内置 VPN") {
+                Section("虚拟定位服务") {
                     HStack {
-                        Label("StikDebug Loopback", systemImage: "network")
+                        Label("StikDebug 虚拟定位服务", systemImage: "location.viewfinder")
                         Spacer()
                         Text(vpnStatusText)
                             .foregroundStyle(.secondary)
@@ -80,12 +91,12 @@ struct SettingsView: View {
                     Button {
                         Task { _ = await builtInVPN.ensureConnected() }
                     } label: {
-                        Label("连接内置 VPN", systemImage: "lock.shield")
+                        Label("连接定位服务", systemImage: "lock.shield")
                     }
                     Button(role: .destructive) {
                         builtInVPN.stop()
                     } label: {
-                        Label("断开内置 VPN", systemImage: "lock.slash")
+                        Label("断开定位服务", systemImage: "lock.slash")
                     }
                 }
 
@@ -117,28 +128,13 @@ struct SettingsView: View {
                     Text("后台保活")
                 }
 
-                // Advanced
-                Section("高级") {
-                    HStack {
-                        Text("目标设备 IP")
-                        Spacer()
-                        TextField("10.7.0.1", text: $customTargetIP)
-                                .multilineTextAlignment(.trailing)
-                                .keyboardType(.numbersAndPunctuation)
-                                .submitLabel(.done)
-                    }
-                    Button { openAppFolder() } label: {
-                        Label("应用文件夹", systemImage: "folder")
-                    }.foregroundStyle(.primary)
-                }
-
                 // Help
                 Section("帮助") {
                     Link(destination: URL(string: "https://github.com/StephenDev0/StikDebug-Guide/blob/main/pairing_file.md")!) {
                         Label("配对文件指南", systemImage: "questionmark.circle")
                     }
                     Link(destination: URL(string: "https://github.com/jkcoxson/LocalDevVPN")!) {
-                        Label("内置 VPN 基于 LocalDevVPN", systemImage: "network.badge.shield.half.filled")
+                        Label("虚拟定位服务基于 LocalDevVPN", systemImage: "network.badge.shield.half.filled")
                     }
                 }
 
@@ -234,11 +230,4 @@ struct SettingsView: View {
         .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 4)
     }
 
-    private func openAppFolder() {
-        guard let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
-        let path = documentsURL.absoluteString.replacingOccurrences(of: "file://", with: "shareddocuments://")
-        if let url = URL(string: path) {
-            UIApplication.shared.open(url, options: [:], completionHandler: nil)
-        }
-    }
 }

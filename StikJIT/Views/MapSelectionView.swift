@@ -904,17 +904,21 @@ struct LocationSimulationView: View {
 
     private func simulate() {
         guard pairingExists, let coord = coordinate, !isBusy else { return }
-        runLocationCommand(
-            errorTitle: "模拟失败",
-            errorMessage: { code in
-                "无法模拟位置（错误 \(code)）。请确认设备已连接且 DDI 已挂载。"
-            },
-            operation: { locationUpdateCode(for: coord) }
-        ) {
-            routePlaybackCoordinate = nil
-            beginBackgroundTask()
-            startResendLoop(with: coord)
-            BackgroundLocationManager.shared.requestStart()
+
+        Task { @MainActor in
+            guard await ensureLocationServiceConnected() else { return }
+            runLocationCommand(
+                errorTitle: "模拟失败",
+                errorMessage: { code in
+                    "无法模拟位置（错误 \(code)）。请确认设备已连接且 DDI 已挂载。"
+                },
+                operation: { locationUpdateCode(for: coord) }
+            ) {
+                routePlaybackCoordinate = nil
+                beginBackgroundTask()
+                startResendLoop(with: coord)
+                BackgroundLocationManager.shared.requestStart()
+            }
         }
     }
 
@@ -925,20 +929,23 @@ struct LocationSimulationView: View {
               !isBusy else {
             return
         }
-        stopResendLoop()
-        cancelRoutePlayback(resetMarker: false)
-        runLocationCommand(
-            errorTitle: "路线模拟失败",
-            errorMessage: { code in
-                "无法开始路线模拟（错误 \(code)）。请确认设备已连接且 LocalDevVPN 正在运行。"
-            },
-            operation: { locationUpdateCode(for: firstCoordinate) }
-        ) {
-            beginBackgroundTask()
-            BackgroundLocationManager.shared.requestStart()
-            simulatedCoordinate = nil
-            routePlaybackCoordinate = firstCoordinate
-            startRoutePlayback()
+        Task { @MainActor in
+            guard await ensureLocationServiceConnected() else { return }
+            stopResendLoop()
+            cancelRoutePlayback(resetMarker: false)
+            runLocationCommand(
+                errorTitle: "路线模拟失败",
+                errorMessage: { code in
+                    "无法开始路线模拟（错误 \(code)）。请确认设备已连接且虚拟定位服务正在运行。"
+                },
+                operation: { locationUpdateCode(for: firstCoordinate) }
+            ) {
+                beginBackgroundTask()
+                BackgroundLocationManager.shared.requestStart()
+                simulatedCoordinate = nil
+                routePlaybackCoordinate = firstCoordinate
+                startRoutePlayback()
+            }
         }
     }
 
@@ -962,6 +969,18 @@ struct LocationSimulationView: View {
                 }
             }
         }
+    }
+
+    private func ensureLocationServiceConnected() async -> Bool {
+        let status = await BuiltInVPNManager.shared.refreshStatus()
+        if status == .connected {
+            return true
+        }
+
+        alertTitle = "定位服务未连接"
+        alertMessage = "虚拟定位服务当前未连接，请先在设置中连接定位服务后再开始模拟。"
+        showAlert = true
+        return false
     }
 
     private func clear() {
