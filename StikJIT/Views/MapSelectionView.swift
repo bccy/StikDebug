@@ -1072,36 +1072,6 @@ struct LocationSimulationView: View {
                     } else {
                         pinControls
                     }
-
-                    HStack(spacing: 24) {
-                        Button {
-                            playButtonHaptic()
-                            showBookmarks = true
-                        } label: {
-                            Image(systemName: "bookmark.fill")
-                        }
-
-                        Button {
-                            playButtonHaptic()
-                            showRouteSearch = true
-                        } label: {
-                            Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
-                        }
-                        .disabled(isBusy || isRouteRunning)
-
-                        Button {
-                            showCoordinateImporter = true
-                        } label: {
-                            Image(systemName: "square.and.arrow.down")
-                        }
-                        .disabled(isBusy || isRouteRunning || isImportingCoordinates)
-                        .accessibilityLabel("导入坐标")
-                    }
-                    .font(.body)
-                    .padding(.vertical, 10)
-                    .padding(.horizontal, 20)
-                    .background(.regularMaterial, in: Capsule())
-                    .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 3)
                 }
                 .padding(.bottom, 24)
                 .padding(.horizontal, 16)
@@ -1110,6 +1080,30 @@ struct LocationSimulationView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItemGroup(placement: .topBarLeading) {
+                Button {
+                    playButtonHaptic()
+                    showBookmarks = true
+                } label: {
+                    Image(systemName: "bookmark.fill")
+                }
+
+                Button {
+                    playButtonHaptic()
+                    showRouteSearch = true
+                } label: {
+                    Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
+                }
+                .disabled(isBusy || isRouteRunning)
+
+                Button {
+                    showCoordinateImporter = true
+                } label: {
+                    Image(systemName: "square.and.arrow.down")
+                }
+                .disabled(isBusy || isRouteRunning || isImportingCoordinates)
+                .accessibilityLabel("导入坐标")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 TextField("搜索位置…", text: $searchText)
                     .padding(.leading, 6)
