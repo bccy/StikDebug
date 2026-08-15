@@ -501,7 +501,7 @@ struct LocationSimulationView: View {
     @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var mapReloadID = UUID()
     @State private var isMapVisible = true
-    @State private var mapLayer: MapLayer = .standard
+    @State private var selectedMapLayer: MapLayer = .standard
 
     @State private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
     @State private var resendTimer: Timer?
@@ -556,7 +556,7 @@ struct LocationSimulationView: View {
     }
 
     private var mapStyle: MapStyle {
-        switch mapLayer {
+        switch selectedMapLayer {
         case .standard:
             return .standard(elevation: .realistic)
         case .satellite:
@@ -570,9 +570,9 @@ struct LocationSimulationView: View {
         Menu {
             ForEach(MapLayer.allCases) { layer in
                 Button {
-                    mapLayer = layer
+                    selectedMapLayer = layer
                 } label: {
-                    if layer == mapLayer {
+                    if layer == selectedMapLayer {
                         Label(layer.title, systemImage: "checkmark")
                     } else {
                         Text(layer.title)
