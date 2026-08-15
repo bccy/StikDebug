@@ -1936,15 +1936,6 @@ struct BookmarksView: View {
     let onSelect: (LocationBookmark) -> Void
     let onDelete: (IndexSet) -> Void
 
-    @State private var pendingDelete: (bookmark: LocationBookmark, offsets: IndexSet)?
-
-    private var isDeleteAlertPresented: Binding<Bool> {
-        Binding(
-            get: { pendingDelete != nil },
-            set: { if !$0 { pendingDelete = nil } }
-        )
-    }
-
     var body: some View {
         NavigationStack {
             Group {
@@ -1973,34 +1964,13 @@ struct BookmarksView: View {
                             .buttonStyle(.plain)
                             .listRowBackground(Color.clear)
                         }
-                        .onDelete(perform: requestDelete(offsets:))
+                        .onDelete(perform: onDelete)
                     }
                     .scrollContentBackground(.hidden)
                 }
             }
             .navigationTitle("收藏")
             .navigationBarTitleDisplayMode(.inline)
-            .alert("删除收藏", isPresented: isDeleteAlertPresented) {
-                Button("删除", role: .destructive) {
-                    if let pendingDelete {
-                        onDelete(pendingDelete.offsets)
-                    }
-                    pendingDelete = nil
-                }
-                Button("取消", role: .cancel) {
-                    pendingDelete = nil
-                }
-            }
         }
-    }
-
-    private func requestDelete(_ bookmark: LocationBookmark) {
-        guard let index = bookmarks.firstIndex(where: { $0.id == bookmark.id }) else { return }
-        pendingDelete = (bookmark, IndexSet(integer: index))
-    }
-
-    private func requestDelete(offsets: IndexSet) {
-        guard let first = offsets.first, bookmarks.indices.contains(first) else { return }
-        pendingDelete = (bookmarks[first], offsets)
     }
 }
