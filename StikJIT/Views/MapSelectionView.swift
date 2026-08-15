@@ -1789,7 +1789,7 @@ struct BookmarksView: View {
     let onSelect: (LocationBookmark) -> Void
     let onDelete: (IndexSet) -> Void
 
-    @Environment(\.editMode) private var editMode
+    @State private var isEditing = false
     @State private var bookmarkPendingNoteEdit: LocationBookmark?
     @State private var noteText = ""
 
@@ -1812,33 +1812,65 @@ struct BookmarksView: View {
                 } else {
                     List {
                         ForEach(bookmarks) { bookmark in
-                            Button {
-                                onSelect(bookmark)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(bookmark.name)
-                                        .foregroundStyle(.primary)
-                                    if !bookmark.note.isEmpty {
-                                        Text(bookmark.note)
-                                            .font(.caption)
+                            HStack(spacing: 8) {
+                                Button {
+                                    onSelect(bookmark)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(bookmark.name)
+                                            .foregroundStyle(.primary)
+                                        if !bookmark.note.isEmpty {
+                                            Text(bookmark.note)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Text(String(format: "%.6f, %.6f", bookmark.latitude, bookmark.longitude))
+                                            .font(.caption.monospaced())
                                             .foregroundStyle(.secondary)
                                     }
-                                    Text(String(format: "%.6f, %.6f", bookmark.latitude, bookmark.longitude))
-                                        .font(.caption.monospaced())
-                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+
+                                if isEditing {
+                                    Button {
+                                        beginNoteEdit(bookmark)
+                                    } label: {
+                                        Label("修改", systemImage: "pencil")
+                                            .font(.callout)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 6)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .tint(.blue)
+
+                                    Button {
+                                        deleteBookmark(bookmark)
+                                    } label: {
+                                        Label("删除", systemImage: "trash")
+                                            .font(.callout)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 6)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .tint(.red)
                                 }
                             }
                             .swipeActions(edge: .trailing) {
                                 Button {
-                                    noteText = bookmark.note
-                                    bookmarkPendingNoteEdit = bookmark
+                                    deleteBookmark(bookmark)
+                                } label: {
+                                    Label("删除", systemImage: "trash")
+                                }
+                                .tint(.red)
+
+                                Button {
+                                    beginNoteEdit(bookmark)
                                 } label: {
                                     Label("修改", systemImage: "pencil")
                                 }
                                 .tint(.blue)
                             }
                         }
-                        .onDelete(perform: onDelete)
                     }
                 }
             }
@@ -1846,9 +1878,9 @@ struct BookmarksView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if !bookmarks.isEmpty {
-                    Button(editMode?.wrappedValue.isEditing == true ? "完成" : "编辑") {
+                    Button(isEditing ? "完成" : "编辑") {
                         withAnimation {
-                            editMode?.wrappedValue = editMode?.wrappedValue.isEditing == true ? .inactive : .active
+                            isEditing.toggle()
                         }
                     }
                 }
@@ -1859,6 +1891,16 @@ struct BookmarksView: View {
                 Button("取消", role: .cancel) { bookmarkPendingNoteEdit = nil }
             }
         }
+    }
+
+    private func beginNoteEdit(_ bookmark: LocationBookmark) {
+        noteText = bookmark.note
+        bookmarkPendingNoteEdit = bookmark
+    }
+
+    private func deleteBookmark(_ bookmark: LocationBookmark) {
+        guard let index = bookmarks.firstIndex(where: { $0.id == bookmark.id }) else { return }
+        onDelete(IndexSet(integer: index))
     }
 
     private func saveNote() {
