@@ -636,6 +636,7 @@ struct LocationSimulationView: View {
     @State private var isMapVisible = true
     @State private var selectedMapLayer: MapLayer = .standard
     @State private var recenterState: RecenterState = .idle
+    @State private var lastRealLocation: CLLocationCoordinate2D?
     @StateObject private var headingProvider = MapHeadingProvider()
 
     @State private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
@@ -963,6 +964,14 @@ struct LocationSimulationView: View {
                 restoreActiveSimulationState()
                 headingProvider.start()
             }
+            .onChange(of: headingProvider.userLocation) { _, newLocation in
+                guard let newLocation else { return }
+                // 非模拟状态下的定位更新 = 真实定位,持续缓存;
+                // 模拟状态下不更新(此时系统定位是假位置)
+                if simulatedCoordinate == nil {
+                    lastRealLocation = newLocation
+                }
+            }
             .onChange(of: searchRequested) { _, requested in
                 if requested {
                     searchFieldFocused = true
@@ -1219,11 +1228,23 @@ struct LocationSimulationView: View {
         routeStartSelection = nil
         routeEndSelection = nil
         routePlaybackSamples = []
+        recenterState = .idle
 
         isMapVisible = false
         Task { @MainActor in
             await Task.yield()
-            position = .userLocation(fallback: .automatic)
+            if let real = lastRealLocation {
+                // 用缓存的真实定位立即居中,不等 GPS 重新定位
+                position = .region(
+                    MKCoordinateRegion(
+                        center: real,
+                        latitudinalMeters: 1000,
+                        longitudinalMeters: 1000
+                    )
+                )
+            } else {
+                position = .userLocation(fallback: .automatic)
+            }
             mapReloadID = UUID()
             isMapVisible = true
         }
@@ -1358,6 +1379,11 @@ struct LocationSimulationView: View {
     private func simulate() {
         guard pairingExists, let coord = coordinate, !isBusy else { return }
         guard canStartSimulationOnCurrentNetwork() else { return }
+
+        // 注入模拟位置前,快照当前真实定位(供停止模拟后快速回位)
+        if simulatedCoordinate == nil {
+            lastRealLocation = headingProvider.userLocation ?? lastRealLocation
+        }
 
         Task { @MainActor in
             guard await ensureLocationServiceConnected() else { return }
