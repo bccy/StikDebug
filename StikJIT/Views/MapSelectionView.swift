@@ -876,7 +876,6 @@ struct LocationSimulationView: View {
             saveBookmarks()
         }
         .presentationDetents([.height(bookmarksSheetHeight)])
-        .presentationBackground(.regularMaterial)
     }
 
     private var bookmarksSheetHeight: CGFloat {
@@ -1689,7 +1688,6 @@ private struct RouteSearchSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
-        .presentationBackground(.regularMaterial)
         .onAppear {
             if startSelection == nil {
                 focusedField = .start
