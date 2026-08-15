@@ -1407,6 +1407,7 @@ struct LocationSimulationView: View {
                     Text(hasActiveSimulation ? "正在模拟导航" : "开始模拟导航")
                 }
                     .buttonStyle(.borderedProminent)
+                    .tint(hasActiveSimulation ? .green : .accentColor)
                     .disabled(
                         hasActiveSimulation ||
                         !pairingExists ||
