@@ -482,6 +482,12 @@ private enum MapLayer: String, CaseIterable, Identifiable {
     }
 }
 
+private enum RecenterState {
+    case idle
+    case centered
+    case heading
+}
+
 struct LocationSimulationView: View {
     // Serial queue: the location simulation helpers share process-wide state, so
     // serialising all calls avoids handle lifetime races.
@@ -507,6 +513,7 @@ struct LocationSimulationView: View {
     @State private var mapReloadID = UUID()
     @State private var isMapVisible = true
     @State private var selectedMapLayer: MapLayer = .standard
+    @State private var recenterState: RecenterState = .idle
 
     @State private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
     @State private var resendTimer: Timer?
@@ -570,47 +577,51 @@ struct LocationSimulationView: View {
         }
     }
 
-    private var layerToggleButton: some View {
+    private var mapControlsCapsule: some View {
         VStack(spacing: 0) {
-            ForEach(MapLayer.allCases) { layer in
-                layerButton(layer)
-                if layer != MapLayer.allCases.last {
-                    Divider()
-                        .frame(width: 28)
-                }
+            Button {
+                selectedMapLayer = selectedMapLayer == .standard ? .satellite : .standard
+            } label: {
+                Image(systemName: selectedMapLayer.icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .frame(width: 44, height: 48)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+
+            Button {
+                handleRecenter()
+            } label: {
+                Image(systemName: recenterIcon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(recenterState == .heading ? Color.accentColor : .primary)
+                    .frame(width: 44, height: 48)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
-        .background(.regularMaterial, in: Capsule())
-        .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
     }
 
-    private func layerButton(_ layer: MapLayer) -> some View {
-        Button {
-            selectedMapLayer = layer
-        } label: {
-            VStack(spacing: 2) {
-                Image(systemName: layer.icon)
-                    .font(.system(size: 15, weight: .semibold))
-                Text(layer.title)
-                    .font(.system(size: 10, weight: .medium))
-            }
-            .foregroundStyle(selectedMapLayer == layer ? Color.accentColor : .primary)
-            .frame(width: 44, height: 46)
-            .contentShape(Rectangle())
+    private var recenterIcon: String {
+        switch recenterState {
+        case .idle: return "location"
+        case .centered: return "location.fill"
+        case .heading: return "location.north.line.fill"
         }
-        .buttonStyle(.plain)
     }
 
-    private var recenterButton: some View {
-        Button {
+    private func handleRecenter() {
+        switch recenterState {
+        case .idle:
             position = .userLocation(fallback: .automatic)
-        } label: {
-            Image(systemName: "location")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.primary)
-                .frame(width: 40, height: 40)
-                .background(.regularMaterial, in: Circle())
-                .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+            recenterState = .centered
+        case .centered:
+            position = .userLocation(followsHeading: true, fallback: .automatic)
+            recenterState = .heading
+        case .heading:
+            position = .userLocation(fallback: .automatic)
+            recenterState = .centered
         }
     }
 
@@ -861,16 +872,11 @@ struct LocationSimulationView: View {
 
                 HStack {
                     Spacer()
-                    recenterButton
+                    mapControlsCapsule
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
             }
-
-            layerToggleButton
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                .padding(.trailing, 16)
-                .padding(.top, 8)
 
         }
     }
