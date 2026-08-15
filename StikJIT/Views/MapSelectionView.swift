@@ -559,6 +559,7 @@ struct LocationSimulationView: View {
     @State private var selectedMapLayer: MapLayer = .standard
     @State private var recenterState: RecenterState = .idle
     @State private var suppressCameraDetectionUntil: Date = .distantPast
+    @State private var mapHeading: CLLocationDirection = 0
     @StateObject private var headingProvider = MapHeadingProvider()
 
     @State private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
@@ -649,6 +650,43 @@ struct LocationSimulationView: View {
         }
         .modifier(GlassCapsuleModifier())
         .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
+    }
+
+    private var compassButton: some View {
+        Button {
+            compassTapped()
+        } label: {
+            Image(systemName: "location.north.fill")
+                .font(.system(size: 15, weight: .bold))
+                .rotationEffect(.degrees(-mapHeading))
+                .foregroundStyle(.primary)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .modifier(GlassCapsuleModifier())
+    }
+
+    private func compassTapped() {
+        if recenterState == .heading {
+            handleRecenter()
+        }
+        guard let center = simulatedCoordinate ?? headingProvider.userLocation ?? position.region?.center else { return }
+        withAnimation(.easeInOut(duration: 0.3)) {
+            position = .camera(
+                MapCamera(centerCoordinate: center, distance: currentMapDistance, heading: 0)
+            )
+        }
+    }
+
+    private var currentMapDistance: CLLocationDistance {
+        if let camera = position.camera {
+            return camera.distance
+        }
+        if let region = position.region {
+            return region.span.latitudeDelta * 111_320
+        }
+        return 1000
     }
 
     private var recenterIcon: String {
@@ -946,7 +984,10 @@ struct LocationSimulationView: View {
 
                 HStack {
                     Spacer()
-                    mapControlsCapsule
+                    VStack(spacing: 8) {
+                        compassButton
+                        mapControlsCapsule
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
@@ -986,6 +1027,7 @@ struct LocationSimulationView: View {
                 }
                 .mapStyle(mapStyle)
                 .onMapCameraChange(frequency: .continuous) { context in
+                    mapHeading = context.camera.heading
                     handleCameraChange(region: context.region)
                 }
                 .onTapGesture { point in
@@ -994,7 +1036,6 @@ struct LocationSimulationView: View {
                     }
                 }
                 .mapControls {
-                    MapCompass()
                     MapScaleView()
                 }
             }
