@@ -558,7 +558,6 @@ struct LocationSimulationView: View {
     @State private var isMapVisible = true
     @State private var selectedMapLayer: MapLayer = .standard
     @State private var recenterState: RecenterState = .idle
-    @State private var suppressCameraDetectionUntil: Date = .distantPast
     @State private var mapHeading: CLLocationDirection = 0
     @StateObject private var headingProvider = MapHeadingProvider()
 
@@ -699,14 +698,13 @@ struct LocationSimulationView: View {
 
     private func handleCameraChange(region: MKCoordinateRegion) {
         guard recenterState != .idle,
-              Date() >= suppressCameraDetectionUntil,
               let userCoord = simulatedCoordinate ?? headingProvider.userLocation else { return }
 
         let center = region.center
         let distance = CLLocation(latitude: center.latitude, longitude: center.longitude)
             .distance(from: CLLocation(latitude: userCoord.latitude, longitude: userCoord.longitude))
 
-        // 相机中心离开用户位置 = 用户拖动了地图,退出跟随/朝向
+        // 相机稳定后中心离开用户位置 = 用户拖动了地图,退出跟随/朝向
         if distance > 150 {
             recenterState = .idle
         }
@@ -715,8 +713,6 @@ struct LocationSimulationView: View {
     private func handleRecenter() {
         switch recenterState {
         case .idle:
-            // 回中动画期间抑制拖动检测,避免图标闪动
-            suppressCameraDetectionUntil = Date().addingTimeInterval(0.8)
             withAnimation(.easeInOut(duration: 0.5)) {
                 position = .userLocation(fallback: .automatic)
             }
@@ -1028,6 +1024,8 @@ struct LocationSimulationView: View {
                 .mapStyle(mapStyle)
                 .onMapCameraChange(frequency: .continuous) { context in
                     mapHeading = context.camera.heading
+                }
+                .onMapCameraChange(frequency: .onEnd) { context in
                     handleCameraChange(region: context.region)
                 }
                 .onTapGesture { point in
