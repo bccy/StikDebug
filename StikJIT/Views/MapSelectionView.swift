@@ -1676,7 +1676,8 @@ private struct RouteSearchSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
+        .presentationBackground(.ultraThinMaterial)
         .onAppear {
             if startSelection == nil {
                 focusedField = .start
