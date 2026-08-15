@@ -741,7 +741,7 @@ struct LocationSimulationView: View {
 
         guard recenterState != .idle,
               Date() >= headingDetectionSuppressUntil,
-              let userCoord = simulatedCoordinate ?? headingProvider.userLocation else { return }
+              let userCoord = cameraReferenceCoordinate else { return }
 
         let center = region.center
         let distance = CLLocation(latitude: center.latitude, longitude: center.longitude)
@@ -751,6 +751,15 @@ struct LocationSimulationView: View {
         if distance > 150 {
             recenterState = .idle
         }
+    }
+
+    // 地图"用户位置"参照:模拟定位时设备收到的是 GCJ 转换后的 WGS-84 坐标,
+    // 必须用转换后的坐标对比相机中心,否则中国大陆内会偏差 100-700 米导致误判
+    private var cameraReferenceCoordinate: CLLocationCoordinate2D? {
+        if let simulated = simulatedCoordinate {
+            return ChinaCoordinateConverter.gcj02ToWGS84Exact(simulated)
+        }
+        return headingProvider.userLocation
     }
 
     private func handleRecenter() {
