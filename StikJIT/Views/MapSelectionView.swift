@@ -9,6 +9,7 @@ import SwiftUI
 import MapKit
 import Network
 import UIKit
+import CoreLocation
 
 private struct CoordinateSnapshot: Equatable {
     let latitude: Double
@@ -461,6 +462,32 @@ final class NetworkPathObserver: ObservableObject {
     }
 }
 
+private final class MapHeadingProvider: NSObject, ObservableObject, CLLocationManagerDelegate {
+    @Published var heading: CLLocationDirection = 0
+    private let manager = CLLocationManager()
+
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.headingOrientation = .portrait
+    }
+
+    func start() {
+        manager.startUpdatingHeading()
+    }
+
+    func stop() {
+        manager.stopUpdatingHeading()
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
+        let value = newHeading.trueHeading >= 0 ? newHeading.trueHeading : newHeading.magneticHeading
+        heading = value
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
+}
+
 private enum MapLayer: String, CaseIterable, Identifiable {
     case standard
     case satellite
@@ -514,6 +541,8 @@ struct LocationSimulationView: View {
     @State private var isMapVisible = true
     @State private var selectedMapLayer: MapLayer = .standard
     @State private var recenterState: RecenterState = .idle
+    @State private var lastMapCenter: CLLocationCoordinate2D?
+    @StateObject private var headingProvider = MapHeadingProvider()
 
     @State private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
     @State private var resendTimer: Timer?
@@ -614,10 +643,25 @@ struct LocationSimulationView: View {
     }
 
     private func syncRecenterState(with newPosition: MapCameraPosition) {
+        if let center = mapCenterCoordinate(from: newPosition) {
+            lastMapCenter = center
+        }
         switch newPosition {
         case .userLocation(let followsHeading, _):
-            recenterState = followsHeading ? .heading : .centered
+            if followsHeading {
+                recenterState = .heading
+            } else {
+                headingProvider.stop()
+                recenterState = .centered
+            }
+        case .camera:
+            // 朝向模式下由 applyHeadingCamera 持续写入 .camera,保持 .heading
+            if recenterState != .heading {
+                headingProvider.stop()
+                recenterState = .idle
+            }
         default:
+            headingProvider.stop()
             recenterState = .idle
         }
     }
@@ -628,17 +672,54 @@ struct LocationSimulationView: View {
             withAnimation(.easeInOut(duration: 0.5)) {
                 position = .userLocation(fallback: .automatic)
             }
+            headingProvider.stop()
             recenterState = .centered
         case .centered:
-            withAnimation(.easeInOut(duration: 0.5)) {
-                position = .userLocation(followsHeading: true, fallback: .automatic)
-            }
+            headingProvider.start()
             recenterState = .heading
+            applyHeadingCamera()
         case .heading:
+            headingProvider.stop()
             withAnimation(.easeInOut(duration: 0.5)) {
                 position = .userLocation(fallback: .automatic)
             }
             recenterState = .centered
+        }
+    }
+
+    private func mapCenterCoordinate(from position: MapCameraPosition) -> CLLocationCoordinate2D? {
+        switch position {
+        case .region(let region):
+            return region.center
+        case .camera(let camera):
+            return camera.centerCoordinate
+        case .rect(let rect):
+            return MKMapPoint(x: rect.midX, y: rect.midY).coordinate
+        case .userLocation(_, let fallback):
+            return mapCenterCoordinate(from: fallback)
+        case .automatic:
+            return nil
+        }
+    }
+
+    private var currentCameraDistance: CLLocationDistance {
+        if case .camera(let camera) = position {
+            return camera.distance
+        }
+        return 1200
+    }
+
+    private func applyHeadingCamera() {
+        guard recenterState == .heading,
+              let center = simulatedCoordinate ?? lastMapCenter ?? coordinate else { return }
+        withAnimation(.linear(duration: 0.2)) {
+            position = .camera(
+                MapCamera(
+                    centerCoordinate: center,
+                    distance: currentCameraDistance,
+                    heading: headingProvider.heading
+                )
+            )
         }
     }
 
@@ -839,7 +920,11 @@ struct LocationSimulationView: View {
                     restoreActiveSimulationState()
                 }
             }
+            .onReceive(headingProvider.$heading) { _ in
+                applyHeadingCamera()
+            }
             .onDisappear {
+                headingProvider.stop()
                 routeLoadTask?.cancel()
                 routeLoadTask = nil
                 routeSpeedPrefetchTask?.cancel()
