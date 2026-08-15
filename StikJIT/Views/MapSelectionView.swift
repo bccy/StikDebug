@@ -27,6 +27,7 @@ private struct CoordinateSnapshot: Equatable {
 
 private final class ResendFailureCounter {
     var count = 0
+    var reconnectInProgress = false
 }
 
 private struct RouteSearchSelection {
@@ -1709,11 +1710,17 @@ struct LocationSimulationView: View {
                     failures.count = 0
                 } else {
                     failures.count += 1
-                    if failures.count == 3 {
-                        DispatchQueue.main.async {
-                            self.alertTitle = "模拟连接中断"
-                            self.alertMessage = "无法更新模拟位置，请确认定位服务(VPN)仍处于连接状态，并尝试重新模拟。"
-                            self.showAlert = true
+                    if failures.count == 3, !failures.reconnectInProgress {
+                        failures.reconnectInProgress = true
+                        Task.detached(priority: .userInitiated) {
+                            _ = await BuiltInVPNManager.shared.ensureConnected()
+                            try? JITEnableContext.shared.ensureTunnel()
+                            DispatchQueue.main.async {
+                                failures.reconnectInProgress = false
+                                self.alertTitle = "模拟连接中断"
+                                self.alertMessage = "定位服务(VPN)已断开，已尝试自动重连，若仍失败请到设置中手动连接。"
+                                self.showAlert = true
+                            }
                         }
                     }
                 }
