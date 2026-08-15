@@ -45,7 +45,7 @@ struct MainTabView: View {
                 .tag(Self.actionBookmarksTag)
 
             Color.clear
-                .tabItem { Label("搜索", systemImage: "magnifyingglass") }
+                .tabItem { Image(systemName: "magnifyingglass") }
                 .tag(Self.actionSearchTag)
 
             SettingsView()
