@@ -646,22 +646,15 @@ struct LocationSimulationView: View {
         if let center = mapCenterCoordinate(from: newPosition) {
             lastMapCenter = center
         }
-        switch newPosition {
-        case .userLocation(let followsHeading, _):
-            if followsHeading {
-                recenterState = .heading
-            } else {
-                headingProvider.stop()
-                recenterState = .centered
-            }
-        case .camera:
-            // 朝向模式下由 applyHeadingCamera 持续写入 .camera,保持 .heading
-            if recenterState != .heading {
+
+        if recenterState == .heading {
+            // 朝向模式由 applyHeadingCamera 持续写入 .camera;用户拖动后退出
+            if newPosition.camera == nil {
                 headingProvider.stop()
                 recenterState = .idle
             }
-        default:
-            headingProvider.stop()
+        } else if newPosition.region != nil || newPosition.rect != nil {
+            // 用户拖动/选点导致相机离开 userLocation
             recenterState = .idle
         }
     }
@@ -688,22 +681,20 @@ struct LocationSimulationView: View {
     }
 
     private func mapCenterCoordinate(from position: MapCameraPosition) -> CLLocationCoordinate2D? {
-        switch position {
-        case .region(let region):
+        if let region = position.region {
             return region.center
-        case .camera(let camera):
-            return camera.centerCoordinate
-        case .rect(let rect):
-            return MKMapPoint(x: rect.midX, y: rect.midY).coordinate
-        case .userLocation(_, let fallback):
-            return mapCenterCoordinate(from: fallback)
-        case .automatic:
-            return nil
         }
+        if let camera = position.camera {
+            return camera.centerCoordinate
+        }
+        if let rect = position.rect {
+            return MKMapPoint(x: rect.midX, y: rect.midY).coordinate
+        }
+        return nil
     }
 
     private var currentCameraDistance: CLLocationDistance {
-        if case .camera(let camera) = position {
+        if let camera = position.camera {
             return camera.distance
         }
         return 1200
