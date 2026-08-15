@@ -1048,7 +1048,8 @@ struct LocationSimulationView: View {
     private var routeSearchSheet: some View {
         RouteSearchSheet(
             initialStart: routeStartSelection,
-            initialEnd: routeEndSelection
+            initialEnd: routeEndSelection,
+            currentUserLocation: simulatedCoordinate ?? headingProvider.userLocation
         ) { startSelection, endSelection in
             routeStartSelection = startSelection
             routeEndSelection = endSelection
@@ -1714,6 +1715,7 @@ private struct RouteSearchSheet: View {
 
     let initialStart: RouteSearchSelection?
     let initialEnd: RouteSearchSelection?
+    let currentUserLocation: CLLocationCoordinate2D?
     let onApply: (RouteSearchSelection, RouteSearchSelection) -> Void
 
     @StateObject private var startCompleter = LocationSearchCompleter()
@@ -1731,10 +1733,12 @@ private struct RouteSearchSheet: View {
     init(
         initialStart: RouteSearchSelection?,
         initialEnd: RouteSearchSelection?,
+        currentUserLocation: CLLocationCoordinate2D? = nil,
         onApply: @escaping (RouteSearchSelection, RouteSearchSelection) -> Void
     ) {
         self.initialStart = initialStart
         self.initialEnd = initialEnd
+        self.currentUserLocation = currentUserLocation
         self.onApply = onApply
         _startQuery = State(initialValue: initialStart?.title ?? "")
         _endQuery = State(initialValue: initialEnd?.title ?? "")
@@ -1768,7 +1772,8 @@ private struct RouteSearchSheet: View {
                         tint: .green,
                         text: $startQuery,
                         selection: startSelection,
-                        field: .start
+                        field: .start,
+                        showsCurrentLocationButton: true
                     )
 
                     routeField(
@@ -1891,7 +1896,8 @@ private struct RouteSearchSheet: View {
         tint: Color,
         text: Binding<String>,
         selection: RouteSearchSelection?,
-        field: RouteSearchField
+        field: RouteSearchField,
+        showsCurrentLocationButton: Bool = false
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
@@ -1918,6 +1924,20 @@ private struct RouteSearchSheet: View {
                             focusedField = nil
                         }
                     }
+
+                if showsCurrentLocationButton {
+                    Button {
+                        useCurrentLocationForStart()
+                    } label: {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.blue)
+                            .frame(width: 26, height: 26)
+                            .background(Circle().fill(Color.blue.opacity(0.12)))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("使用当前定位")
+                }
             }
             .padding(.horizontal, 2)
             .padding(.vertical, 4)
@@ -1928,6 +1948,18 @@ private struct RouteSearchSheet: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private func useCurrentLocationForStart() {
+        guard let location = currentUserLocation else {
+            errorMessage = "暂时无法获取当前定位，请检查定位权限。"
+            return
+        }
+        startQuery = "当前位置"
+        startSelection = RouteSearchSelection(title: "当前位置", coordinate: location)
+        startCompleter.results = []
+        errorMessage = nil
+        focusedField = .end
     }
 
     private func update(query: String, for field: RouteSearchField) {
