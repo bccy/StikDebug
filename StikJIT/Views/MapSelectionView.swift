@@ -1665,7 +1665,8 @@ private struct RouteSearchSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .fraction(0.92)])
+        .presentationDetents([.medium, .large])
+        .presentationBackground(.clear)
         .onAppear {
             if startSelection == nil {
                 focusedField = .start
@@ -1812,6 +1813,7 @@ struct BookmarksView: View {
                                             .font(.caption.monospaced())
                                             .foregroundStyle(.secondary)
                                     }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                                 .buttonStyle(.plain)
 
