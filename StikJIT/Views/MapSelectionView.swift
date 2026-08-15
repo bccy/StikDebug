@@ -541,6 +541,45 @@ private struct GlassCapsuleModifier: ViewModifier {
     }
 }
 
+// 系统原生指南针(MKCompassButton),可放在任意位置
+private struct SystemCompassView: UIViewRepresentable {
+    let mapView: MKMapView?
+
+    func makeUIView(context: Context) -> MKCompassButton {
+        let compass = MKCompassButton(mapView: mapView ?? MKMapView())
+        compass.compassVisibility = .visible
+        return compass
+    }
+
+    func updateUIView(_ uiView: MKCompassButton, context: Context) {
+        uiView.mapView = mapView
+    }
+}
+
+// 遍历视图层级找到 SwiftUI Map 底层的 MKMapView
+private struct MapViewFinder: UIViewRepresentable {
+    let onFound: (MKMapView) -> Void
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.isHidden = true
+        view.isUserInteractionEnabled = false
+        DispatchQueue.main.async {
+            var current = view.superview
+            while let c = current {
+                if let mapView = c as? MKMapView {
+                    onFound(mapView)
+                    return
+                }
+                current = c.superview
+            }
+        }
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {}
+}
+
 struct LocationSimulationView: View {
     // Serial queue: the location simulation helpers share process-wide state, so
     // serialising all calls avoids handle lifetime races.
@@ -572,7 +611,7 @@ struct LocationSimulationView: View {
     @State private var selectedMapLayer: MapLayer = .standard
     @State private var recenterState: RecenterState = .idle
     @State private var headingDetectionSuppressUntil: Date = .distantPast
-    @State private var mapHeading: CLLocationDirection = 0
+    @State private var mapViewRef: MKMapView?
     @StateObject private var headingProvider = MapHeadingProvider()
 
     @State private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
@@ -637,45 +676,9 @@ struct LocationSimulationView: View {
         }
     }
 
-    private var compassButton: some View {
-        Button {
-            compassTapped()
-        } label: {
-            ZStack {
-                Circle()
-                    .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 0.5)
-                Image(systemName: "location.north.fill")
-                    .font(.system(size: 13, weight: .bold))
-                    .rotationEffect(.degrees(-mapHeading))
-                    .foregroundStyle(.primary)
-            }
+    private var compassView: some View {
+        SystemCompassView(mapView: mapViewRef)
             .frame(width: 40, height: 40)
-            .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .modifier(GlassCapsuleModifier())
-    }
-
-    private func compassTapped() {
-        if recenterState == .heading {
-            handleRecenter()
-        }
-        guard let center = simulatedCoordinate ?? headingProvider.userLocation ?? position.region?.center else { return }
-        withAnimation(.easeInOut(duration: 0.3)) {
-            position = .camera(
-                MapCamera(centerCoordinate: center, distance: currentMapDistance, heading: 0)
-            )
-        }
-    }
-
-    private var currentMapDistance: CLLocationDistance {
-        if let camera = position.camera {
-            return camera.distance
-        }
-        if let region = position.region {
-            return region.span.latitudeDelta * 111_320
-        }
-        return 1000
     }
 
     private var mapControlsCapsule: some View {
@@ -973,6 +976,14 @@ struct LocationSimulationView: View {
         ZStack(alignment: .bottom) {
             mapLayer
                 .ignoresSafeArea()
+                .onChange(of: position) { _, newValue in
+                    // 系统指南针点击会退出朝向跟随,同步图标状态
+                    if recenterState == .heading,
+                       case .userLocation(let followsHeading, _) = newValue,
+                       !followsHeading {
+                        recenterState = .centered
+                    }
+                }
                 .onChange(of: coordinate.map(CoordinateSnapshot.init)) { _, new in
                     if let new {
                         position = .region(
@@ -1005,7 +1016,7 @@ struct LocationSimulationView: View {
                 HStack {
                     Spacer()
                     VStack(spacing: 8) {
-                        compassButton
+                        compassView
                         mapControlsCapsule
                     }
                 }
@@ -1022,6 +1033,11 @@ struct LocationSimulationView: View {
             MapReader { proxy in
                 Map(position: $position) {
                     UserAnnotation()
+
+                    // 找到 SwiftUI Map 底层的 MKMapView,供系统指南针使用
+                    MapViewFinder { found in
+                        mapViewRef = found
+                    }
 
                     if hasRouteContext {
                         if let routePolyline {
@@ -1046,9 +1062,6 @@ struct LocationSimulationView: View {
                     }
                 }
                 .mapStyle(mapStyle)
-                .onMapCameraChange(frequency: .continuous) { context in
-                    mapHeading = context.camera.heading
-                }
                 .onMapCameraChange(frequency: .onEnd) { context in
                     handleCameraChange(region: context.region)
                 }
