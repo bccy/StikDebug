@@ -566,13 +566,20 @@ private struct SystemCompassView: UIViewRepresentable {
         guard compass.mapView == nil || compass.mapView !== currentMap else { return }
         if let found = currentMap {
             compass.mapView = found
-            // 开启系统蓝色朝向扇形(跟随朝向模式时围绕用户位置显示朝向指示)
-            found.showsUserHeadingIndicator = true
         } else {
             // 地图尚未渲染完成,稍后重试
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 self.findAndAssignMapView(to: compass)
             }
+        }
+    }
+
+    // 按模式设置内部 MKMapView 的跟踪模式:
+    // followWithHeading 时系统自动绘制蓝色朝向扇形
+    static func applyUserTrackingMode(_ mode: MKUserTrackingMode) {
+        guard let mapView = findMapViewInApp() else { return }
+        if mapView.userTrackingMode != mode {
+            mapView.userTrackingMode = mode
         }
     }
 
@@ -747,15 +754,19 @@ struct LocationSimulationView: View {
             withAnimation(.easeInOut(duration: 0.5)) {
                 position = .userLocation(fallback: .automatic)
             }
+            SystemCompassView.applyUserTrackingMode(.follow)
             recenterState = .centered
         case .centered:
             // 系统原生朝向跟随:地图随设备朝向旋转
             position = .userLocation(followsHeading: true, fallback: .automatic)
+            // followWithHeading 模式:显示蓝色朝向扇形
+            SystemCompassView.applyUserTrackingMode(.followWithHeading)
             recenterState = .heading
         case .heading:
             withAnimation(.easeInOut(duration: 0.5)) {
                 position = .userLocation(fallback: .automatic)
             }
+            SystemCompassView.applyUserTrackingMode(.follow)
             recenterState = .centered
         }
     }
