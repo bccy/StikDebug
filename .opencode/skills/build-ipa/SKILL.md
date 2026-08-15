@@ -16,8 +16,10 @@ Goal: turn the current code into `StikDebug-Debug.ipa` on this machine by lettin
 ## Prerequisites (verify first, ~1 command each)
 
 - `gh` CLI installed and authenticated: `gh auth status` — must be logged in as an account with access to the repo shown by `git remote get-url origin`.
-- `gh` must have the right repo: run `gh repo set-default` with the value of `git remote get-url origin` if the default repo is wrong.
+- **`gh` default repo must match `origin`, not a fork/upstream remote.** When multiple remotes exist (e.g. `upstream` was added for comparison), `gh` may dispatch to the wrong repo and fail with `HTTP 403: Must have admin rights`. Fix: `gh repo set-default <owner>/<repo>` before anything else.
+- **git commit identity:** if `git commit` fails with "Author identity unknown", fetch from `gh api user --jq '{name:.name, login:.login}'` and set `git config user.name/user.email` (repo-local), using `<login>@users.noreply.github.com`.
 - Workflow file exists: `.github/workflows/build_ipa.yml`. If the user edited it locally, it must be pushed before the build.
+- **Known CI failure:** `No simulator runtime version ... available to use with iphonesimulator SDK` in the asset-catalog step means the pinned `xcode-version` (e.g. `26.0.1`) no longer matches the runner's simulator runtimes — not a code bug. Fix by bumping `xcode-version` in the workflow (26.6 is known-good) and pushing it. The same commit that succeeded months ago can start failing for this reason.
 
 ## Procedure
 
