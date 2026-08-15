@@ -461,6 +461,22 @@ final class NetworkPathObserver: ObservableObject {
     }
 }
 
+private enum MapLayer: String, CaseIterable, Identifiable {
+    case standard
+    case satellite
+    case hybrid
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .standard: return "标准"
+        case .satellite: return "卫星"
+        case .hybrid: return "混合"
+        }
+    }
+}
+
 struct LocationSimulationView: View {
     // Serial queue: the location simulation helpers share process-wide state, so
     // serialising all calls avoids handle lifetime races.
@@ -485,6 +501,7 @@ struct LocationSimulationView: View {
     @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var mapReloadID = UUID()
     @State private var isMapVisible = true
+    @State private var mapLayer: MapLayer = .standard
 
     @State private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
     @State private var resendTimer: Timer?
@@ -535,6 +552,40 @@ struct LocationSimulationView: View {
         return routePlan.displayCoordinates.withUnsafeBufferPointer { buffer in
             guard let baseAddress = buffer.baseAddress else { return nil }
             return MKPolyline(coordinates: baseAddress, count: buffer.count)
+        }
+    }
+
+    private var mapStyle: MapStyle {
+        switch mapLayer {
+        case .standard:
+            return .standard(elevation: .realistic)
+        case .satellite:
+            return .imagery(elevation: .realistic)
+        case .hybrid:
+            return .hybrid(elevation: .realistic)
+        }
+    }
+
+    private var layerToggleButton: some View {
+        Menu {
+            ForEach(MapLayer.allCases) { layer in
+                Button {
+                    mapLayer = layer
+                } label: {
+                    if layer == mapLayer {
+                        Label(layer.title, systemImage: "checkmark")
+                    } else {
+                        Text(layer.title)
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "square.3.layers.3d")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 40, height: 40)
+                .background(.regularMaterial, in: Circle())
+                .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
         }
     }
 
@@ -784,6 +835,11 @@ struct LocationSimulationView: View {
                 .padding(.horizontal, 16)
             }
 
+            layerToggleButton
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .padding(.trailing, 16)
+                .padding(.top, 8)
+
         }
     }
 
@@ -816,14 +872,16 @@ struct LocationSimulationView: View {
                             .tint(.red)
                     }
                 }
-                .mapStyle(.standard(elevation: .realistic))
+                .mapStyle(mapStyle)
                 .onTapGesture { point in
                     if let loc = proxy.convert(point, from: .local) {
                         applySelection(loc)
                     }
                 }
                 .mapControls {
+                    MapUserLocationButton()
                     MapCompass()
+                    MapScaleView()
                 }
             }
             .id(mapReloadID)
