@@ -626,7 +626,6 @@ struct LocationSimulationView: View {
     @State private var isMapVisible = true
     @State private var selectedMapLayer: MapLayer = .standard
     @State private var recenterState: RecenterState = .idle
-    @State private var headingDetectionSuppressUntil: Date = .distantPast
     @StateObject private var headingProvider = MapHeadingProvider()
 
     @State private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
@@ -736,30 +735,7 @@ struct LocationSimulationView: View {
         // 系统指南针点击会退出朝向跟随(heading 归零),同步图标状态
         if recenterState == .heading && heading < 2 {
             recenterState = .centered
-            return
         }
-
-        guard recenterState != .idle,
-              Date() >= headingDetectionSuppressUntil,
-              let userCoord = cameraReferenceCoordinate else { return }
-
-        let center = region.center
-        let distance = CLLocation(latitude: center.latitude, longitude: center.longitude)
-            .distance(from: CLLocation(latitude: userCoord.latitude, longitude: userCoord.longitude))
-
-        // 相机稳定后中心离开用户位置 = 用户拖动了地图,退出跟随/朝向
-        if distance > 150 {
-            recenterState = .idle
-        }
-    }
-
-    // 地图"用户位置"参照:模拟定位时设备收到的是 GCJ 转换后的 WGS-84 坐标,
-    // 必须用转换后的坐标对比相机中心,否则中国大陆内会偏差 100-700 米导致误判
-    private var cameraReferenceCoordinate: CLLocationCoordinate2D? {
-        if let simulated = simulatedCoordinate {
-            return ChinaCoordinateConverter.gcj02ToWGS84Exact(simulated)
-        }
-        return headingProvider.userLocation
     }
 
     private func handleRecenter() {
@@ -770,8 +746,7 @@ struct LocationSimulationView: View {
             }
             recenterState = .centered
         case .centered:
-            // 系统原生朝向跟随:进入后 1.5 秒内抑制拖动检测,避免状态闪退
-            headingDetectionSuppressUntil = Date().addingTimeInterval(1.5)
+            // 系统原生朝向跟随:地图随设备朝向旋转
             position = .userLocation(followsHeading: true, fallback: .automatic)
             recenterState = .heading
         case .heading:
@@ -1078,6 +1053,16 @@ struct LocationSimulationView: View {
                     }
                 }
                 .mapStyle(mapStyle)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 20)
+                        .onEnded { _ in
+                            // 只有用户真正拖动地图才退出跟随/朝向;
+                            // 旋转手机、回中动画等不触发
+                            if recenterState != .idle {
+                                recenterState = .idle
+                            }
+                        }
+                )
                 .onMapCameraChange(frequency: .onEnd) { context in
                     handleCameraChange(region: context.region, heading: context.camera.heading)
                 }
