@@ -717,6 +717,62 @@ struct LocationSimulationView: View {
     }
 
     var body: some View {
+        mapStack
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                searchToolbar
+            }
+            .alert(alertTitle, isPresented: $showAlert) {
+                Button("确定", role: .cancel) { }
+            } message: {
+                Text(alertMessage)
+            }
+            .alert("保存书签", isPresented: $showSaveBookmark) {
+                TextField("名称", text: $newBookmarkName)
+                Button("保存") { addBookmark() }
+                Button("取消", role: .cancel) { newBookmarkName = "" }
+            } message: {
+                Text("为这个位置输入一个名称。")
+            }
+            .fullScreenCover(isPresented: $showCellularNetworkWarning) {
+                cellularNetworkWarningOverlay
+                    .presentationBackground(.clear)
+            }
+            .sheet(isPresented: $showBookmarks) {
+                bookmarksSheet
+            }
+            .onChange(of: bookmarks) { _, _ in
+                saveBookmarks()
+            }
+            .sheet(isPresented: $showRouteSearch) {
+                routeSearchSheet
+            }
+            .onAppear {
+                loadBookmarks()
+                restoreActiveSimulationState()
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active {
+                    // The resend timer is suspended in background; rebuild it on return.
+                    restoreActiveSimulationState()
+                }
+            }
+            .onDisappear {
+                routeLoadTask?.cancel()
+                routeLoadTask = nil
+                routeSpeedPrefetchTask?.cancel()
+                resetRouteSpeedPrefetchState()
+                if isRouteRunning {
+                    cancelRoutePlayback(resetMarker: false)
+                }
+                if backgroundTaskID != .invalid {
+                    BackgroundLocationManager.shared.requestStop()
+                }
+                endBackgroundTask()
+            }
+    }
+
+    private var mapStack: some View {
         ZStack(alignment: .bottom) {
             mapLayer
                 .ignoresSafeArea()
@@ -751,66 +807,6 @@ struct LocationSimulationView: View {
             }
 
         }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            searchToolbar
-        }
-        .alert(alertTitle, isPresented: $showAlert) {
-            Button("确定", role: .cancel) { }
-        } message: {
-            Text(alertMessage)
-        }
-        .alert("保存书签", isPresented: $showSaveBookmark) {
-            TextField("名称", text: $newBookmarkName)
-            Button("保存") { addBookmark() }
-            Button("取消", role: .cancel) { newBookmarkName = "" }
-        } message: {
-            Text("为这个位置输入一个名称。")
-        }
-        .fullScreenCover(isPresented: $showCellularNetworkWarning) {
-            cellularNetworkWarningOverlay
-                .presentationBackground(.clear)
-        }
-        .sheet(isPresented: $showBookmarks) {
-            bookmarksSheet
-        }
-        .onChange(of: bookmarks) { _, _ in
-            saveBookmarks()
-        }
-        .sheet(isPresented: $showRouteSearch) {
-            RouteSearchSheet(
-                initialStart: routeStartSelection,
-                initialEnd: routeEndSelection
-            ) { startSelection, endSelection in
-                routeStartSelection = startSelection
-                routeEndSelection = endSelection
-                refreshRoute()
-            }
-        }
-        .onAppear {
-            loadBookmarks()
-            restoreActiveSimulationState()
-        }
-        .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active {
-                // The resend timer is suspended in background; rebuild it on return.
-                restoreActiveSimulationState()
-            }
-        }
-        .onDisappear {
-            routeLoadTask?.cancel()
-            routeLoadTask = nil
-            routeSpeedPrefetchTask?.cancel()
-            resetRouteSpeedPrefetchState()
-            if isRouteRunning {
-                cancelRoutePlayback(resetMarker: false)
-            }
-            if backgroundTaskID != .invalid {
-                BackgroundLocationManager.shared.requestStop()
-            }
-            endBackgroundTask()
-        }
-    }
 
     @ViewBuilder
     private var mapLayer: some View {
@@ -877,6 +873,17 @@ struct LocationSimulationView: View {
         } onDelete: { offsets in
             bookmarks.remove(atOffsets: offsets)
             saveBookmarks()
+        }
+    }
+
+    private var routeSearchSheet: some View {
+        RouteSearchSheet(
+            initialStart: routeStartSelection,
+            initialEnd: routeEndSelection
+        ) { startSelection, endSelection in
+            routeStartSelection = startSelection
+            routeEndSelection = endSelection
+            refreshRoute()
         }
     }
 
