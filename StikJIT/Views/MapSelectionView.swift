@@ -1843,22 +1843,8 @@ struct BookmarksView: View {
                                     .tint(.red)
                                 }
                             }
-                            .swipeActions(edge: .trailing) {
-                                Button {
-                                    deleteBookmark(bookmark)
-                                } label: {
-                                    Label("删除", systemImage: "trash")
-                                }
-                                .tint(.red)
-
-                                Button {
-                                    beginEdit(bookmark)
-                                } label: {
-                                    Label("修改", systemImage: "pencil")
-                                }
-                                .tint(.blue)
-                            }
                         }
+                        .onDelete(perform: onDelete)
                     }
                 }
             }
