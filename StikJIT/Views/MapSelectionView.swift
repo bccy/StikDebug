@@ -562,9 +562,12 @@ private struct SystemCompassView: UIViewRepresentable {
     }
 
     private func findAndAssignMapView(to compass: MKCompassButton) {
-        guard compass.mapView == nil || compass.mapView !== Self.findMapViewInApp() else { return }
-        if let found = Self.findMapViewInApp() {
+        let currentMap = Self.findMapViewInApp()
+        guard compass.mapView == nil || compass.mapView !== currentMap else { return }
+        if let found = currentMap {
             compass.mapView = found
+            // 开启系统蓝色朝向扇形(跟随朝向模式时围绕用户位置显示朝向指示)
+            found.showsUserHeadingIndicator = true
         } else {
             // 地图尚未渲染完成,稍后重试
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
