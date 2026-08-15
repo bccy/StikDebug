@@ -753,14 +753,7 @@ struct LocationSimulationView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                TextField("搜索位置…", text: $searchText)
-                    .padding(.leading, 6)
-                    .autocorrectionDisabled()
-                    .onChange(of: searchText) { _, newValue in
-                        searchCompleter.update(query: newValue)
-                    }
-            }
+            searchToolbar
         }
         .alert(alertTitle, isPresented: $showAlert) {
             Button("确定", role: .cancel) { }
@@ -865,6 +858,17 @@ struct LocationSimulationView: View {
     }
 
     // MARK: - Bookmarks
+
+    private var searchToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            TextField("搜索位置…", text: $searchText)
+                .padding(.leading, 6)
+                .autocorrectionDisabled()
+                .onChange(of: searchText) { _, newValue in
+                    searchCompleter.update(query: newValue)
+                }
+        }
+    }
 
     private var bookmarksSheet: some View {
         BookmarksView(bookmarks: $bookmarks) { bookmark in
