@@ -1725,6 +1725,7 @@ private struct RouteSearchSheet: View {
     @State private var isResolvingSelection = false
     @State private var errorMessage: String?
     @FocusState private var focusedField: RouteSearchField?
+    @State private var lastFocusedField: RouteSearchField = .start
 
     init(
         initialStart: RouteSearchSelection?,
@@ -1741,13 +1742,13 @@ private struct RouteSearchSheet: View {
     }
 
     private var activeResults: [MKLocalSearchCompletion] {
-        switch focusedField {
+        // 焦点为空(键盘收起)时返回最后聚焦输入框的结果,避免结果丢失
+        let field = focusedField ?? lastFocusedField
+        switch field {
         case .start:
             return startCompleter.results
         case .end:
             return endCompleter.results
-        case .none:
-            return []
         }
     }
 
@@ -1848,6 +1849,11 @@ private struct RouteSearchSheet: View {
         }
         // 高度随内容自适应(搜索结果显示时变高),最多 92%
         .presentationDetents([.height(sheetHeight)])
+        .onChange(of: focusedField) { _, newValue in
+            if let newValue {
+                lastFocusedField = newValue
+            }
+        }
         .onAppear {
             if startSelection == nil {
                 focusedField = .start
@@ -1858,7 +1864,7 @@ private struct RouteSearchSheet: View {
     }
 
     private var sheetHeight: CGFloat {
-        let baseHeight: CGFloat = 250
+        let baseHeight: CGFloat = 300
         // 输入时(键盘弹出)不增高,避免 detent 变化触发系统顶全屏;
         // 搜索结果在弹窗内滚动查看,键盘收起后弹窗再随内容增高
         let resultsHeight: CGFloat = focusedField != nil || activeResults.isEmpty
@@ -1932,7 +1938,7 @@ private struct RouteSearchSheet: View {
     }
 
     private func resolve(_ completion: MKLocalSearchCompletion) {
-        let field = focusedField ?? .start
+        let field = focusedField ?? lastFocusedField
         let request = MKLocalSearch.Request(completion: completion)
         isResolvingSelection = true
         errorMessage = nil
