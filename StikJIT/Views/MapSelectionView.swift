@@ -1018,7 +1018,7 @@ struct LocationSimulationView: View {
                         // (覆盖"模拟期间用户移动过"的情况)
                         if isPendingRealLocationRecenter {
                             isPendingRealLocationRecenter = false
-                            centerMap(on: newSnapshot.coordinate, duration: 0.5)
+                            centerMap(on: ChinaCoordinateConverter.wgs84ToGCJ02(newSnapshot.coordinate), duration: 0.5)
                         }
                     }
                 }
@@ -1214,7 +1214,8 @@ struct LocationSimulationView: View {
     private func centerOnCurrentLocation() {
         currentLocationProvider.requestCurrentLocation { location in
             if let location {
-                centerMap(on: location.coordinate, duration: 0.35)
+                // GPS 是 WGS-84,地图坐标系为 GCJ-02,居中前转换
+                centerMap(on: ChinaCoordinateConverter.wgs84ToGCJ02(location.coordinate), duration: 0.35)
             } else {
                 position = .userLocation(fallback: .automatic)
                 alertTitle = "无法获取当前位置"
@@ -1244,10 +1245,11 @@ struct LocationSimulationView: View {
         Task { @MainActor in
             await Task.yield()
             if let real = lastRealLocation {
-                // 用缓存的真实定位立即居中,不等 GPS 重新定位
+                // 用缓存的真实定位立即居中,不等 GPS 重新定位;
+                // GPS 是 WGS-84,居中前转成地图坐标系 GCJ-02
                 position = .region(
                     MKCoordinateRegion(
-                        center: real,
+                        center: ChinaCoordinateConverter.wgs84ToGCJ02(real),
                         latitudinalMeters: 1000,
                         longitudinalMeters: 1000
                     )
