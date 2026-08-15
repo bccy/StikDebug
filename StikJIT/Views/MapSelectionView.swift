@@ -820,6 +820,20 @@ struct LocationSimulationView: View {
     private static let activeSimulationLatitudeKey = "activeSimulationLatitude"
     private static let activeSimulationLongitudeKey = "activeSimulationLongitude"
 
+    @Binding var showBookmarks: Bool
+    @Binding var showRouteSearch: Bool
+    @Binding var showCoordinateImporter: Bool
+
+    init(
+        showBookmarks: Binding<Bool>,
+        showRouteSearch: Binding<Bool>,
+        showCoordinateImporter: Binding<Bool>
+    ) {
+        _showBookmarks = showBookmarks
+        _showRouteSearch = showRouteSearch
+        _showCoordinateImporter = showCoordinateImporter
+    }
+
     @Environment(\.scenePhase) private var scenePhase
     @State private var coordinate: CLLocationCoordinate2D?
     @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
@@ -845,9 +859,7 @@ struct LocationSimulationView: View {
     @StateObject private var searchCompleter = LocationSearchCompleter()
     @StateObject private var currentLocationProvider = CurrentLocationProvider()
     @StateObject private var networkPathObserver = NetworkPathObserver()
-    @State private var showRouteSearch = false
     @State private var isImportingCoordinates = false
-    @State private var showCoordinateImporter = false
     @State private var routeStartSelection: RouteSearchSelection?
     @State private var routeEndSelection: RouteSearchSelection?
     @State private var routePlan: RouteSimulationPlan?
@@ -858,7 +870,6 @@ struct LocationSimulationView: View {
 
     // Bookmarks
     @State private var bookmarks: [LocationBookmark] = []
-    @State private var showBookmarks = false
     @State private var showSaveBookmark = false
     @State private var newBookmarkName = ""
 
@@ -1080,30 +1091,6 @@ struct LocationSimulationView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItemGroup(placement: .topBarLeading) {
-                Button {
-                    playButtonHaptic()
-                    showBookmarks = true
-                } label: {
-                    Image(systemName: "bookmark.fill")
-                }
-
-                Button {
-                    playButtonHaptic()
-                    showRouteSearch = true
-                } label: {
-                    Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
-                }
-                .disabled(isBusy || isRouteRunning)
-
-                Button {
-                    showCoordinateImporter = true
-                } label: {
-                    Image(systemName: "square.and.arrow.down")
-                }
-                .disabled(isBusy || isRouteRunning || isImportingCoordinates)
-                .accessibilityLabel("导入坐标")
-            }
             ToolbarItem(placement: .topBarTrailing) {
                 TextField("搜索位置…", text: $searchText)
                     .padding(.leading, 6)
