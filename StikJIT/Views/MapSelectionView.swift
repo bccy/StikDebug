@@ -589,6 +589,19 @@ struct LocationSimulationView: View {
         }
     }
 
+    private var recenterButton: some View {
+        Button {
+            position = .userLocation(fallback: .automatic)
+        } label: {
+            Image(systemName: "location")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 40, height: 40)
+                .background(.regularMaterial, in: Circle())
+                .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+        }
+    }
+
     private var routeStartCoordinate: CLLocationCoordinate2D? {
         routeStartSelection?.coordinate
     }
@@ -833,6 +846,13 @@ struct LocationSimulationView: View {
                 }
                 .padding(.bottom, 24)
                 .padding(.horizontal, 16)
+
+                HStack {
+                    Spacer()
+                    recenterButton
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
             }
 
             layerToggleButton
@@ -879,7 +899,6 @@ struct LocationSimulationView: View {
                     }
                 }
                 .mapControls {
-                    MapUserLocationButton()
                     MapCompass()
                     MapScaleView()
                 }
