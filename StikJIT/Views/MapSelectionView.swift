@@ -1049,7 +1049,8 @@ struct LocationSimulationView: View {
         RouteSearchSheet(
             initialStart: routeStartSelection,
             initialEnd: routeEndSelection,
-            currentUserLocation: simulatedCoordinate ?? headingProvider.userLocation
+            currentUserLocation: simulatedCoordinate ?? headingProvider.userLocation,
+            bookmarks: bookmarks
         ) { startSelection, endSelection in
             routeStartSelection = startSelection
             routeEndSelection = endSelection
@@ -1716,6 +1717,7 @@ private struct RouteSearchSheet: View {
     let initialStart: RouteSearchSelection?
     let initialEnd: RouteSearchSelection?
     let currentUserLocation: CLLocationCoordinate2D?
+    let bookmarks: [LocationBookmark]
     let onApply: (RouteSearchSelection, RouteSearchSelection) -> Void
 
     @StateObject private var startCompleter = LocationSearchCompleter()
@@ -1729,16 +1731,19 @@ private struct RouteSearchSheet: View {
     @FocusState private var focusedField: RouteSearchField?
     @State private var lastFocusedField: RouteSearchField = .start
     @State private var keyboardHeight: CGFloat = 0
+    @State private var showBookmarkPicker = false
 
     init(
         initialStart: RouteSearchSelection?,
         initialEnd: RouteSearchSelection?,
         currentUserLocation: CLLocationCoordinate2D? = nil,
+        bookmarks: [LocationBookmark] = [],
         onApply: @escaping (RouteSearchSelection, RouteSearchSelection) -> Void
     ) {
         self.initialStart = initialStart
         self.initialEnd = initialEnd
         self.currentUserLocation = currentUserLocation
+        self.bookmarks = bookmarks
         self.onApply = onApply
         _startQuery = State(initialValue: initialStart?.title ?? "")
         _endQuery = State(initialValue: initialEnd?.title ?? "")
@@ -1782,7 +1787,8 @@ private struct RouteSearchSheet: View {
                         tint: .red,
                         text: $endQuery,
                         selection: endSelection,
-                        field: .end
+                        field: .end,
+                        showsBookmarkButton: true
                     )
 
                     if let errorMessage {
@@ -1815,6 +1821,8 @@ private struct RouteSearchSheet: View {
                                         }
                                         .padding(.vertical, 10)
                                         .padding(.horizontal, 12)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .contentShape(Rectangle())
                                     }
                                     .buttonStyle(.plain)
 
@@ -1855,6 +1863,9 @@ private struct RouteSearchSheet: View {
         }
         // 高度随内容自适应(搜索结果显示时变高),最多 92%
         .presentationDetents([.height(sheetHeight)])
+        .sheet(isPresented: $showBookmarkPicker) {
+            bookmarkPickerSheet
+        }
         .onChange(of: focusedField) { _, newValue in
             if let newValue {
                 lastFocusedField = newValue
@@ -1897,7 +1908,8 @@ private struct RouteSearchSheet: View {
         text: Binding<String>,
         selection: RouteSearchSelection?,
         field: RouteSearchField,
-        showsCurrentLocationButton: Bool = false
+        showsCurrentLocationButton: Bool = false,
+        showsBookmarkButton: Bool = false
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
@@ -1938,6 +1950,21 @@ private struct RouteSearchSheet: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("使用当前定位")
                 }
+
+                if showsBookmarkButton {
+                    Button {
+                        focusedField = nil
+                        showBookmarkPicker = true
+                    } label: {
+                        Image(systemName: "bookmark.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.blue)
+                            .frame(width: 26, height: 26)
+                            .background(Circle().fill(Color.blue.opacity(0.12)))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("选择收藏地址")
+                }
             }
             .padding(.horizontal, 2)
             .padding(.vertical, 4)
@@ -1960,6 +1987,67 @@ private struct RouteSearchSheet: View {
         startCompleter.results = []
         errorMessage = nil
         focusedField = .end
+    }
+
+    private func applyBookmarkAsEnd(_ bookmark: LocationBookmark) {
+        endQuery = bookmark.name
+        endSelection = RouteSearchSelection(title: bookmark.name, coordinate: bookmark.coordinate)
+        endCompleter.results = []
+        errorMessage = nil
+        showBookmarkPicker = false
+        focusedField = nil
+    }
+
+    private var bookmarkPickerSheet: some View {
+        NavigationStack {
+            Group {
+                if bookmarks.isEmpty {
+                    ContentUnavailableView(
+                        "暂无收藏",
+                        systemImage: "bookmark.slash",
+                        description: Text("请先在位置页添加收藏。")
+                    )
+                } else {
+                    List(bookmarks) { bookmark in
+                        Button {
+                            applyBookmarkAsEnd(bookmark)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(bookmark.name)
+                                    .foregroundStyle(.primary)
+                                Text(String(format: "%.6f, %.6f", bookmark.latitude, bookmark.longitude))
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .navigationTitle("选择收藏地址")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") {
+                        showBookmarkPicker = false
+                    }
+                }
+            }
+        }
+        .presentationDetents([.height(bookmarkPickerHeight)])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var bookmarkPickerHeight: CGFloat {
+        let rowHeight: CGFloat = 60
+        let headerHeight: CGFloat = 120
+        let maxHeight = availableScreenHeight() * 0.92
+        let contentHeight = bookmarks.isEmpty
+            ? 220
+            : CGFloat(bookmarks.count) * rowHeight + headerHeight
+        return min(contentHeight, maxHeight)
     }
 
     private func update(query: String, for field: RouteSearchField) {
