@@ -1408,8 +1408,9 @@ struct LocationSimulationView: View {
                 }
                     .buttonStyle(.borderedProminent)
                     .tint(hasActiveSimulation ? .green : .accentColor)
+                    // 导航进行中:保持绿色显示、禁止点击(不用 disabled,避免变灰)
+                    .allowsHitTesting(!hasActiveSimulation)
                     .disabled(
-                        hasActiveSimulation ||
                         !pairingExists ||
                         isBusy ||
                         isLoadingRoute ||
