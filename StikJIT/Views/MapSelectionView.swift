@@ -601,6 +601,8 @@ struct LocationSimulationView: View {
             }
             .buttonStyle(.plain)
         }
+        .background(.ultraThinMaterial, in: Capsule())
+        .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
     }
 
     private var recenterIcon: String {
@@ -608,6 +610,15 @@ struct LocationSimulationView: View {
         case .idle: return "location"
         case .centered: return "location.fill"
         case .heading: return "location.north.line.fill"
+        }
+    }
+
+    private func syncRecenterState(with newPosition: MapCameraPosition) {
+        switch newPosition {
+        case .userLocation(let followsHeading, _):
+            recenterState = followsHeading ? .heading : .centered
+        default:
+            recenterState = .idle
         }
     }
 
@@ -917,6 +928,9 @@ struct LocationSimulationView: View {
                     }
                 }
                 .mapStyle(mapStyle)
+                .onChange(of: position) { _, newValue in
+                    syncRecenterState(with: newValue)
+                }
                 .onTapGesture { point in
                     if let loc = proxy.convert(point, from: .local) {
                         applySelection(loc)
@@ -961,7 +975,7 @@ struct LocationSimulationView: View {
     private var bookmarksSheetHeight: CGFloat {
         let rowHeight: CGFloat = 60
         let headerHeight: CGFloat = 120
-        let maxHeight = UIScreen.main.bounds.height - 100
+        let maxHeight = UIScreen.main.bounds.height * 0.92
         let contentHeight = bookmarks.isEmpty
             ? 220
             : CGFloat(bookmarks.count) * rowHeight + headerHeight
@@ -1768,7 +1782,7 @@ private struct RouteSearchSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .height(UIScreen.main.bounds.height - 60)])
+        .presentationDetents([.medium, .fraction(0.92)])
         .presentationBackground(.clear)
         .onAppear {
             if startSelection == nil {
