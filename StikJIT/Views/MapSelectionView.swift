@@ -1955,11 +1955,19 @@ struct BookmarksView: View {
     @State private var isEditing = false
     @State private var bookmarkPendingEdit: LocationBookmark?
     @State private var nameText = ""
+    @State private var pendingDelete: (bookmark: LocationBookmark, offsets: IndexSet)?
 
     private var isEditorPresented: Binding<Bool> {
         Binding(
             get: { bookmarkPendingEdit != nil },
             set: { if !$0 { bookmarkPendingEdit = nil } }
+        )
+    }
+
+    private var isDeleteAlertPresented: Binding<Bool> {
+        Binding(
+            get: { pendingDelete != nil },
+            set: { if !$0 { pendingDelete = nil } }
         )
     }
 
@@ -2005,7 +2013,7 @@ struct BookmarksView: View {
                                     .buttonStyle(.plain)
 
                                     Button {
-                                        deleteBookmark(bookmark)
+                                        requestDelete(bookmark)
                                     } label: {
                                         Image(systemName: "minus")
                                             .font(.system(size: 15, weight: .bold))
@@ -2018,7 +2026,7 @@ struct BookmarksView: View {
                             }
                             .listRowBackground(Color.clear)
                         }
-                        .onDelete(perform: onDelete)
+                        .onDelete(perform: requestDelete(offsets:))
                     }
                     .scrollContentBackground(.hidden)
                 }
@@ -2039,6 +2047,21 @@ struct BookmarksView: View {
                 Button("保存") { saveEdit() }
                 Button("取消", role: .cancel) { bookmarkPendingEdit = nil }
             }
+            .alert("删除收藏", isPresented: isDeleteAlertPresented) {
+                Button("删除", role: .destructive) {
+                    if let pendingDelete {
+                        onDelete(pendingDelete.offsets)
+                    }
+                    pendingDelete = nil
+                }
+                Button("取消", role: .cancel) {
+                    pendingDelete = nil
+                }
+            } message: {
+                if let bookmark = pendingDelete?.bookmark {
+                    Text("确定要删除「\(bookmark.name)」吗？")
+                }
+            }
         }
     }
 
@@ -2047,9 +2070,14 @@ struct BookmarksView: View {
         bookmarkPendingEdit = bookmark
     }
 
-    private func deleteBookmark(_ bookmark: LocationBookmark) {
+    private func requestDelete(_ bookmark: LocationBookmark) {
         guard let index = bookmarks.firstIndex(where: { $0.id == bookmark.id }) else { return }
-        onDelete(IndexSet(integer: index))
+        pendingDelete = (bookmark, IndexSet(integer: index))
+    }
+
+    private func requestDelete(offsets: IndexSet) {
+        guard let first = offsets.first, bookmarks.indices.contains(first) else { return }
+        pendingDelete = (bookmarks[first], offsets)
     }
 
     private func saveEdit() {
