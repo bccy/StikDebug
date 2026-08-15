@@ -1701,8 +1701,8 @@ struct LocationSimulationView: View {
         persistActiveSimulation(coordinate)
         resendTimer?.invalidate()
         let failures = ResendFailureCounter()
-        resendTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { [weak self] _ in
-            guard let self, let simulatedCoordinate = self.simulatedCoordinate else { return }
+        resendTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { _ in
+            guard let simulatedCoordinate = self.simulatedCoordinate else { return }
             Self.locationQueue.async {
                 let code = self.locationUpdateCode(for: simulatedCoordinate)
                 if code == 0 {
