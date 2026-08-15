@@ -1648,6 +1648,7 @@ private struct RouteSearchSheet: View {
             .padding(16)
             .navigationTitle("模拟路线")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") {
@@ -1694,6 +1695,7 @@ private struct RouteSearchSheet: View {
                     .foregroundStyle(tint)
 
                 TextField(title, text: text)
+                    .textFieldStyle(.plain)
                     .textInputAutocapitalization(.words)
                     .autocorrectionDisabled()
                     .focused($focusedField, equals: field)
