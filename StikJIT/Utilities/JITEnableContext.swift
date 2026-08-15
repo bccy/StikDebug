@@ -34,7 +34,9 @@ final class JITEnableContext {
     private var tunnelConnecting = false
     private var tunnelSemaphore: DispatchSemaphore?
     private var lastTunnelError: NSError?
-    private let loggerPathStorage: [CChar]
+    // Written once in init; its backing storage stays valid for the app's
+    // lifetime so pointers handed to the FFI logger remain valid.
+    private var loggerPathStorage: [CChar] = []
 
     var adapterHandle: OpaquePointer? { adapter }
     var handshakeHandle: OpaquePointer? { handshake }
