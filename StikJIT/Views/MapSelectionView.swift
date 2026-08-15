@@ -338,6 +338,46 @@ private func buildPlaybackSamples(
     return samples
 }
 
+// 高德路径:按逐段真实速度构建播放采样
+private func buildPlaybackSamples(
+    from displayCoordinates: [CLLocationCoordinate2D],
+    segmentSpeeds: [CLLocationSpeed],
+    fallbackSpeedMetersPerSecond: CLLocationSpeed
+) -> [RoutePlaybackSample] {
+    guard let firstCoordinate = displayCoordinates.first else { return [] }
+
+    var samples = [RoutePlaybackSample(coordinate: firstCoordinate, delayFromPrevious: 0)]
+
+    for (index, pair) in zip(displayCoordinates, displayCoordinates.dropFirst()).enumerated() {
+        let start = pair.0
+        let end = pair.1
+        let segmentDistance = CLLocation(latitude: start.latitude, longitude: start.longitude)
+            .distance(from: CLLocation(latitude: end.latitude, longitude: end.longitude))
+        guard segmentDistance > 0 else { continue }
+
+        let rawSpeed = segmentSpeeds.indices.contains(index)
+            ? segmentSpeeds[index]
+            : fallbackSpeedMetersPerSecond
+        let clampedSpeed = max(rawSpeed, RouteSimulationDefaults.minimumSpeedMetersPerSecond)
+        let segmentTravelTime = segmentDistance / clampedSpeed
+        let segmentStepCount = max(1, Int(ceil(segmentTravelTime / RouteSimulationDefaults.playbackTickInterval)))
+        let stepDelay = segmentTravelTime / Double(segmentStepCount)
+
+        for stepIndex in 1...segmentStepCount {
+            let coordinate = interpolateCoordinate(
+                from: start,
+                to: end,
+                fraction: Double(stepIndex) / Double(segmentStepCount)
+            )
+            if samples.last.map({ CoordinateSnapshot($0.coordinate) }) != CoordinateSnapshot(coordinate) {
+                samples.append(RoutePlaybackSample(coordinate: coordinate, delayFromPrevious: stepDelay))
+            }
+        }
+    }
+
+    return samples
+}
+
 // MARK: - Bookmark Model
 
 struct LocationBookmark: Identifiable, Codable, Equatable {
@@ -1636,6 +1676,7 @@ struct LocationSimulationView: View {
     }
 
     private func refreshRoute() {
+        guard !isRouteRunning else { return }
         routeLoadTask?.cancel()
         routeSpeedPrefetchTask?.cancel()
         resetRouteSpeedPrefetchState()
@@ -1656,6 +1697,72 @@ struct LocationSimulationView: View {
         isPrefetchingRouteSpeeds = false
         routeSpeedPrefetchProgress = 0.0
 
+        routeLoadTask = Task {
+            // 优先高德驾车路径规划:国内直连、GCJ-02 免转换、逐段真实速度
+            do {
+                let amapRoute = try await AmapRouteService.fetchDrivingRoute(from: routeStart, to: routeEnd)
+                guard !Task.isCancelled else { return }
+
+                let displayCoordinates = sampledRouteCoordinates(
+                    from: amapRoute.coordinates,
+                    targetDistance: RouteSimulationDefaults.pathSamplingDistance
+                )
+                guard displayCoordinates.count > 1 else {
+                    throw NSError(
+                        domain: "RouteSimulation",
+                        code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "未返回可驾驶路线。"]
+                    )
+                }
+
+                let fallbackSpeed = amapRoute.totalDuration > 0
+                    ? amapRoute.totalDistance / amapRoute.totalDuration
+                    : 13.4
+                let segmentSpeeds = AmapRouteService.segmentSpeeds(
+                    for: displayCoordinates,
+                    rawPath: amapRoute.coordinates,
+                    steps: amapRoute.steps
+                )
+                let playbackSamples = buildPlaybackSamples(
+                    from: displayCoordinates,
+                    segmentSpeeds: segmentSpeeds,
+                    fallbackSpeedMetersPerSecond: fallbackSpeed
+                )
+
+                await MainActor.run {
+                    guard routeRequestID == requestID else { return }
+                    routePlan = RouteSimulationPlan(
+                        displayCoordinates: displayCoordinates,
+                        distance: amapRoute.totalDistance,
+                        expectedTravelTime: amapRoute.totalDuration
+                    )
+                    routePlaybackSamples = playbackSamples
+                    isLoadingRoute = false
+                    if let routePolyline {
+                        position = .rect(routePolyline.boundingMapRect)
+                    }
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    guard routeRequestID == requestID else { return }
+                    isLoadingRoute = false
+                    resetRouteSpeedPrefetchState()
+                }
+            } catch {
+                // 高德失败:回退 Apple 路线 + Overpass 限速
+                await MainActor.run {
+                    guard routeRequestID == requestID else { return }
+                    loadRouteWithAppleFallback(start: routeStart, end: routeEnd, requestID: requestID)
+                }
+            }
+        }
+    }
+
+    private func loadRouteWithAppleFallback(
+        start routeStart: CLLocationCoordinate2D,
+        end routeEnd: CLLocationCoordinate2D,
+        requestID: UUID
+    ) {
         let request = MKDirections.Request()
         request.source = MKMapItem(placemark: MKPlacemark(coordinate: routeStart))
         request.destination = MKMapItem(placemark: MKPlacemark(coordinate: routeEnd))
