@@ -1859,11 +1859,16 @@ private struct RouteSearchSheet: View {
 
     private var sheetHeight: CGFloat {
         let baseHeight: CGFloat = 250
-        let resultsHeight: CGFloat = activeResults.isEmpty
+        // 输入时(键盘弹出)不增高,避免 detent 变化触发系统顶全屏;
+        // 搜索结果在弹窗内滚动查看,键盘收起后弹窗再随内容增高
+        let resultsHeight: CGFloat = focusedField != nil || activeResults.isEmpty
             ? 0
             : min(CGFloat(activeResults.count) * 44, 260)
         let hintHeight: CGFloat = (errorMessage == nil && activeResults.isEmpty && !isResolvingSelection) ? 30 : 0
-        return min(baseHeight + resultsHeight + hintHeight, availableScreenHeight() * 0.92)
+        // 键盘弹出时可用高度缩减,上限按调整后的高度计算
+        let keyboardAdjustment: CGFloat = focusedField != nil ? 300 : 0
+        let maxHeight = max(availableScreenHeight() - keyboardAdjustment, 220) * 0.92
+        return min(baseHeight + resultsHeight + hintHeight, maxHeight)
     }
 
     private func routeField(
