@@ -1836,9 +1836,8 @@ private struct RouteSearchSheet: View {
                 }
             }
         }
-        // 输入框聚焦(键盘弹出)时锁定 medium,防止系统把弹窗顶到最高;
-        // 键盘收起后恢复最高 92%。
-        .presentationDetents(focusedField == nil ? [.medium, .fraction(0.92)] : [.medium])
+        // 最高 92%,任何状态(含输入框聚焦/键盘弹出)都不超过此高度
+        .presentationDetents([.medium, .fraction(0.92)])
         .presentationBackground(.clear)
         .onAppear {
             if startSelection == nil {
