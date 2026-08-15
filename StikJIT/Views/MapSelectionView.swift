@@ -614,13 +614,19 @@ struct LocationSimulationView: View {
     private func handleRecenter() {
         switch recenterState {
         case .idle:
-            position = .userLocation(fallback: .automatic)
+            withAnimation(.easeInOut(duration: 0.5)) {
+                position = .userLocation(fallback: .automatic)
+            }
             recenterState = .centered
         case .centered:
-            position = .userLocation(followsHeading: true, fallback: .automatic)
+            withAnimation(.easeInOut(duration: 0.5)) {
+                position = .userLocation(followsHeading: true, fallback: .automatic)
+            }
             recenterState = .heading
         case .heading:
-            position = .userLocation(fallback: .automatic)
+            withAnimation(.easeInOut(duration: 0.5)) {
+                position = .userLocation(fallback: .automatic)
+            }
             recenterState = .centered
         }
     }
