@@ -1024,7 +1024,6 @@ struct LocationSimulationView: View {
         }
         .presentationDetents([.height(bookmarksSheetHeight)])
         .presentationDragIndicator(.visible)
-        .presentationBackground(.clear)
     }
 
     private var bookmarksSheetHeight: CGFloat {
@@ -1822,7 +1821,6 @@ private struct RouteSearchSheet: View {
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle("模拟路线")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") {
@@ -1842,7 +1840,6 @@ private struct RouteSearchSheet: View {
         }
         // 最高 92%(height 档位)
         .presentationDetents([.medium, .height(UIScreen.main.bounds.height * 0.92)])
-        .presentationBackground(.clear)
         .onAppear {
             if startSelection == nil {
                 focusedField = .start
