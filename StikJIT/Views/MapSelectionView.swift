@@ -1125,9 +1125,14 @@ struct LocationSimulationView: View {
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 20)
                         .onEnded { _ in
-                            // 只有用户真正拖动地图才退出跟随/朝向;
-                            // 旋转手机、回中动画等不触发
-                            if recenterState != .idle {
+                            if routePlaybackTask != nil {
+                                // 导航中:拖动查看地图,松手后回到蓝点继续跟随居中
+                                withAnimation(.easeInOut(duration: 0.4)) {
+                                    position = .userLocation(fallback: .automatic)
+                                }
+                                recenterState = .centered
+                            } else if recenterState != .idle {
+                                // 非导航:用户拖动地图退出跟随/朝向
                                 recenterState = .idle
                             }
                         }
@@ -1399,10 +1404,11 @@ struct LocationSimulationView: View {
                     playButtonHaptic()
                     simulateRoute()
                 } label: {
-                    Text("开始模拟路线")
+                    Text(hasActiveSimulation ? "正在模拟导航" : "开始模拟导航")
                 }
                     .buttonStyle(.borderedProminent)
                     .disabled(
+                        hasActiveSimulation ||
                         !pairingExists ||
                         isBusy ||
                         isLoadingRoute ||
@@ -1476,6 +1482,11 @@ struct LocationSimulationView: View {
                 persistActiveSimulation(firstCoordinate)
                 routePlaybackCoordinate = firstCoordinate
                 startRoutePlayback()
+                // 导航中默认跟随蓝点实时居中
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    position = .userLocation(fallback: .automatic)
+                }
+                recenterState = .centered
                 showAirplaneModeSuccessIfNeeded()
             }
         }
