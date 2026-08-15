@@ -12,22 +12,19 @@ struct MainTabView: View {
     private static let settingsTag = "settings"
     private static let actionBookmarksTag = "action-bookmarks"
     private static let actionRouteTag = "action-route"
-    private static let actionImportTag = "action-import"
 
     @State private var selection: String = Self.locationTag
     @State private var activeTab: String = Self.locationTag
 
     @State private var showBookmarks = false
     @State private var showRouteSearch = false
-    @State private var showCoordinateImporter = false
 
     var body: some View {
         TabView(selection: $selection) {
             NavigationStack {
                 LocationSimulationView(
                     showBookmarks: $showBookmarks,
-                    showRouteSearch: $showRouteSearch,
-                    showCoordinateImporter: $showCoordinateImporter
+                    showRouteSearch: $showRouteSearch
                 )
             }
             .tabItem { Label("位置", systemImage: "location") }
@@ -47,10 +44,6 @@ struct MainTabView: View {
             Color.clear
                 .tabItem { Label("路线", systemImage: "point.topleft.down.curvedto.point.bottomright.up") }
                 .tag(Self.actionRouteTag)
-
-            Color.clear
-                .tabItem { Label("导入", systemImage: "square.and.arrow.down") }
-                .tag(Self.actionImportTag)
         }
         .onChange(of: selection) { _, newValue in
             switch newValue {
@@ -64,10 +57,6 @@ struct MainTabView: View {
                 activeTab = Self.locationTag
                 playButtonHaptic()
                 showRouteSearch = true
-            case Self.actionImportTag:
-                selection = Self.locationTag
-                activeTab = Self.locationTag
-                showCoordinateImporter = true
             default:
                 activeTab = newValue
             }
