@@ -658,7 +658,6 @@ struct LocationSimulationView: View {
 
         // 相机中心离开用户位置超过阈值 = 用户拖动了地图,退出跟随/朝向
         if distance > 800 {
-            headingProvider.stop()
             recenterState = .idle
         }
     }
@@ -669,39 +668,18 @@ struct LocationSimulationView: View {
             withAnimation(.easeInOut(duration: 0.5)) {
                 position = .userLocation(fallback: .automatic)
             }
-            headingProvider.stop()
             recenterState = .centered
         case .centered:
-            headingProvider.start()
+            // 系统原生朝向跟随:地图随设备朝向旋转
+            withAnimation(.easeInOut(duration: 0.5)) {
+                position = .userLocation(followsHeading: true, fallback: .automatic)
+            }
             recenterState = .heading
-            applyHeadingCamera()
         case .heading:
-            headingProvider.stop()
             withAnimation(.easeInOut(duration: 0.5)) {
                 position = .userLocation(fallback: .automatic)
             }
             recenterState = .centered
-        }
-    }
-
-    private var currentCameraDistance: CLLocationDistance {
-        if let camera = position.camera {
-            return camera.distance
-        }
-        return 1200
-    }
-
-    private func applyHeadingCamera() {
-        guard recenterState == .heading,
-              let center = simulatedCoordinate ?? headingProvider.userLocation else { return }
-        withAnimation(.linear(duration: 0.2)) {
-            position = .camera(
-                MapCamera(
-                    centerCoordinate: center,
-                    distance: currentCameraDistance,
-                    heading: headingProvider.heading
-                )
-            )
         }
     }
 
@@ -895,15 +873,13 @@ struct LocationSimulationView: View {
             .onAppear {
                 loadBookmarks()
                 restoreActiveSimulationState()
+                headingProvider.start()
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
                     // The resend timer is suspended in background; rebuild it on return.
                     restoreActiveSimulationState()
                 }
-            }
-            .onReceive(headingProvider.$heading) { _ in
-                applyHeadingCamera()
             }
             .onDisappear {
                 headingProvider.stop()
