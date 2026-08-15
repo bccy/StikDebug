@@ -1860,7 +1860,6 @@ struct BookmarksView: View {
                             }
                         }
                     }
-                    .scrollContentBackground(.hidden)
                 }
             }
             .navigationTitle("收藏")
