@@ -1294,9 +1294,21 @@ struct LocationSimulationView: View {
         }
 
         // 主动发送一次性定位请求(requestLocation),强制 GPS 尽快出真实位置;
-        // 结果到达后自动补正地图到蓝点所在位置
+        // 结果到达后自动补正地图到蓝点所在位置(失败自动重试一次)
+        requestRealLocationWithRetry()
+    }
+
+    private func requestRealLocationWithRetry(attempt: Int = 0) {
         currentLocationProvider.requestCurrentLocation { location in
-            guard let location else { return }
+            guard let location else {
+                // GPS 尚未就绪,稍后重试一次
+                if attempt < 1 {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        self.requestRealLocationWithRetry(attempt: attempt + 1)
+                    }
+                }
+                return
+            }
             lastRealLocation = location.coordinate
             guard isPendingRealLocationRecenter else { return }
             isPendingRealLocationRecenter = false
