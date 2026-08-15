@@ -1022,18 +1022,7 @@ struct LocationSimulationView: View {
             bookmarks.remove(atOffsets: offsets)
             saveBookmarks()
         }
-        .presentationDetents([.height(bookmarksSheetHeight)])
         .presentationDragIndicator(.visible)
-    }
-
-    private var bookmarksSheetHeight: CGFloat {
-        let rowHeight: CGFloat = 60
-        let headerHeight: CGFloat = 120
-        let maxHeight = UIScreen.main.bounds.height * 0.92
-        let contentHeight = bookmarks.isEmpty
-            ? 220
-            : CGFloat(bookmarks.count) * rowHeight + headerHeight
-        return min(contentHeight, maxHeight)
     }
 
     private var routeSearchSheet: some View {
@@ -1748,77 +1737,74 @@ private struct RouteSearchSheet: View {
 
     var body: some View {
         NavigationStack {
-            // 内容包在 ScrollView 中:可滚动内容不会触发系统的键盘顶全屏行为,
-            // 弹窗始终保持当前高度,背景保持透明
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    routeField(
-                        title: "起点",
-                        icon: "circle.fill",
-                        tint: .green,
-                        text: $startQuery,
-                        selection: startSelection,
-                        field: .start
-                    )
+            VStack(alignment: .leading, spacing: 16) {
+                routeField(
+                    title: "起点",
+                    icon: "circle.fill",
+                    tint: .green,
+                    text: $startQuery,
+                    selection: startSelection,
+                    field: .start
+                )
 
-                    routeField(
-                        title: "终点",
-                        icon: "flag.checkered.circle.fill",
-                        tint: .red,
-                        text: $endQuery,
-                        selection: endSelection,
-                        field: .end
-                    )
+                routeField(
+                    title: "终点",
+                    icon: "flag.checkered.circle.fill",
+                    tint: .red,
+                    text: $endQuery,
+                    selection: endSelection,
+                    field: .end
+                )
 
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                    }
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
 
-                    if isResolvingSelection {
-                        ProgressView("正在解析位置…")
-                            .font(.footnote)
-                    } else if !activeResults.isEmpty {
-                        ScrollView {
-                            LazyVStack(spacing: 0) {
-                                ForEach(Array(activeResults.enumerated()), id: \.offset) { index, result in
-                                    Button {
-                                        resolve(result)
-                                    } label: {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(result.title)
-                                                .font(.subheadline)
-                                                .foregroundStyle(.primary)
+                if isResolvingSelection {
+                    ProgressView("正在解析位置…")
+                        .font(.footnote)
+                } else if !activeResults.isEmpty {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(Array(activeResults.enumerated()), id: \.offset) { index, result in
+                                Button {
+                                    resolve(result)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(result.title)
+                                            .font(.subheadline)
+                                            .foregroundStyle(.primary)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                        if !result.subtitle.isEmpty {
+                                            Text(result.subtitle)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
                                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                            if !result.subtitle.isEmpty {
-                                                Text(result.subtitle)
-                                                    .font(.caption)
-                                                    .foregroundStyle(.secondary)
-                                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                            }
                                         }
-                                        .padding(.vertical, 10)
-                                        .padding(.horizontal, 12)
                                     }
-                                    .buttonStyle(.plain)
+                                    .padding(.vertical, 10)
+                                    .padding(.horizontal, 12)
+                                }
+                                .buttonStyle(.plain)
 
-                                    if index < activeResults.count - 1 {
-                                        Divider()
-                                    }
+                                if index < activeResults.count - 1 {
+                                    Divider()
                                 }
                             }
                         }
-                        .frame(maxHeight: 260)
-                    } else {
-                        Text("搜索起点和终点来生成路线。")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
                     }
+                    .frame(maxHeight: 260)
+                } else {
+                    Text("搜索起点和终点来生成路线。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
-                .padding(16)
+
+                Spacer(minLength: 0)
             }
-            .scrollDismissesKeyboard(.interactively)
+            .padding(16)
             .navigationTitle("模拟路线")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1838,8 +1824,6 @@ private struct RouteSearchSheet: View {
                 }
             }
         }
-        // 最高 92%(height 档位)
-        .presentationDetents([.medium, .height(UIScreen.main.bounds.height * 0.92)])
         .onAppear {
             if startSelection == nil {
                 focusedField = .start
@@ -1867,7 +1851,6 @@ private struct RouteSearchSheet: View {
                     .foregroundStyle(tint)
 
                 TextField(title, text: text)
-                    .textFieldStyle(.plain)
                     .textInputAutocapitalization(.words)
                     .autocorrectionDisabled()
                     .focused($focusedField, equals: field)
@@ -2006,10 +1989,6 @@ struct BookmarksView: View {
                 }
                 Button("取消", role: .cancel) {
                     pendingDelete = nil
-                }
-            } message: {
-                if let bookmark = pendingDelete?.bookmark {
-                    Text("确定要删除「\(bookmark.name)」吗？")
                 }
             }
         }
