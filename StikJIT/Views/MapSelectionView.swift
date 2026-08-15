@@ -464,6 +464,7 @@ final class NetworkPathObserver: ObservableObject {
 
 private final class MapHeadingProvider: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var heading: CLLocationDirection = 0
+    @Published var userLocation: CLLocationCoordinate2D?
     private let manager = CLLocationManager()
 
     override init() {
@@ -474,15 +475,21 @@ private final class MapHeadingProvider: NSObject, ObservableObject, CLLocationMa
 
     func start() {
         manager.startUpdatingHeading()
+        manager.startUpdatingLocation()
     }
 
     func stop() {
         manager.stopUpdatingHeading()
+        manager.stopUpdatingLocation()
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
         let value = newHeading.trueHeading >= 0 ? newHeading.trueHeading : newHeading.magneticHeading
         heading = value
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        userLocation = locations.last?.coordinate
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
@@ -541,7 +548,6 @@ struct LocationSimulationView: View {
     @State private var isMapVisible = true
     @State private var selectedMapLayer: MapLayer = .standard
     @State private var recenterState: RecenterState = .idle
-    @State private var lastMapCenter: CLLocationCoordinate2D?
     @StateObject private var headingProvider = MapHeadingProvider()
 
     @State private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
@@ -642,19 +648,17 @@ struct LocationSimulationView: View {
         }
     }
 
-    private func syncRecenterState(with newPosition: MapCameraPosition) {
-        if let center = mapCenterCoordinate(from: newPosition) {
-            lastMapCenter = center
-        }
+    private func handleCameraChange(region: MKCoordinateRegion) {
+        guard recenterState != .idle,
+              let userCoord = simulatedCoordinate ?? headingProvider.userLocation else { return }
 
-        if recenterState == .heading {
-            // 朝向模式由 applyHeadingCamera 持续写入 .camera;用户拖动后退出
-            if newPosition.camera == nil {
-                headingProvider.stop()
-                recenterState = .idle
-            }
-        } else if newPosition.region != nil || newPosition.rect != nil {
-            // 用户拖动/选点导致相机离开 userLocation
+        let center = region.center
+        let distance = CLLocation(latitude: center.latitude, longitude: center.longitude)
+            .distance(from: CLLocation(latitude: userCoord.latitude, longitude: userCoord.longitude))
+
+        // 相机中心离开用户位置超过阈值 = 用户拖动了地图,退出跟随/朝向
+        if distance > 800 {
+            headingProvider.stop()
             recenterState = .idle
         }
     }
@@ -680,19 +684,6 @@ struct LocationSimulationView: View {
         }
     }
 
-    private func mapCenterCoordinate(from position: MapCameraPosition) -> CLLocationCoordinate2D? {
-        if let region = position.region {
-            return region.center
-        }
-        if let camera = position.camera {
-            return camera.centerCoordinate
-        }
-        if let rect = position.rect {
-            return MKMapPoint(x: rect.midX, y: rect.midY).coordinate
-        }
-        return nil
-    }
-
     private var currentCameraDistance: CLLocationDistance {
         if let camera = position.camera {
             return camera.distance
@@ -702,7 +693,7 @@ struct LocationSimulationView: View {
 
     private func applyHeadingCamera() {
         guard recenterState == .heading,
-              let center = simulatedCoordinate ?? lastMapCenter ?? coordinate else { return }
+              let center = simulatedCoordinate ?? headingProvider.userLocation else { return }
         withAnimation(.linear(duration: 0.2)) {
             position = .camera(
                 MapCamera(
@@ -1004,8 +995,8 @@ struct LocationSimulationView: View {
                     }
                 }
                 .mapStyle(mapStyle)
-                .onChange(of: position) { _, newValue in
-                    syncRecenterState(with: newValue)
+                .onMapCameraChange(frequency: .continuous) { context in
+                    handleCameraChange(region: context.region)
                 }
                 .onTapGesture { point in
                     if let loc = proxy.convert(point, from: .local) {
