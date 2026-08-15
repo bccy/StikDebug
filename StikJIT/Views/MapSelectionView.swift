@@ -558,7 +558,7 @@ struct LocationSimulationView: View {
     @State private var isMapVisible = true
     @State private var selectedMapLayer: MapLayer = .standard
     @State private var recenterState: RecenterState = .idle
-    @State private var mapHeading: CLLocationDirection = 0
+    @State private var headingDetectionSuppressUntil: Date = .distantPast
     @StateObject private var headingProvider = MapHeadingProvider()
 
     @State private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
@@ -651,43 +651,6 @@ struct LocationSimulationView: View {
         .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
     }
 
-    private var compassButton: some View {
-        Button {
-            compassTapped()
-        } label: {
-            Image(systemName: "location.north.fill")
-                .font(.system(size: 15, weight: .bold))
-                .rotationEffect(.degrees(-mapHeading))
-                .foregroundStyle(.primary)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .modifier(GlassCapsuleModifier())
-    }
-
-    private func compassTapped() {
-        if recenterState == .heading {
-            handleRecenter()
-        }
-        guard let center = simulatedCoordinate ?? headingProvider.userLocation ?? position.region?.center else { return }
-        withAnimation(.easeInOut(duration: 0.3)) {
-            position = .camera(
-                MapCamera(centerCoordinate: center, distance: currentMapDistance, heading: 0)
-            )
-        }
-    }
-
-    private var currentMapDistance: CLLocationDistance {
-        if let camera = position.camera {
-            return camera.distance
-        }
-        if let region = position.region {
-            return region.span.latitudeDelta * 111_320
-        }
-        return 1000
-    }
-
     private var recenterIcon: String {
         switch recenterState {
         case .idle: return "location"
@@ -698,6 +661,7 @@ struct LocationSimulationView: View {
 
     private func handleCameraChange(region: MKCoordinateRegion) {
         guard recenterState != .idle,
+              Date() >= headingDetectionSuppressUntil,
               let userCoord = simulatedCoordinate ?? headingProvider.userLocation else { return }
 
         let center = region.center
@@ -718,10 +682,9 @@ struct LocationSimulationView: View {
             }
             recenterState = .centered
         case .centered:
-            // 系统原生朝向跟随:地图随设备朝向旋转
-            withAnimation(.easeInOut(duration: 0.5)) {
-                position = .userLocation(followsHeading: true, fallback: .automatic)
-            }
+            // 系统原生朝向跟随:进入后 1.5 秒内抑制拖动检测,避免状态闪退
+            headingDetectionSuppressUntil = Date().addingTimeInterval(1.5)
+            position = .userLocation(followsHeading: true, fallback: .automatic)
             recenterState = .heading
         case .heading:
             withAnimation(.easeInOut(duration: 0.5)) {
@@ -980,10 +943,7 @@ struct LocationSimulationView: View {
 
                 HStack {
                     Spacer()
-                    VStack(spacing: 8) {
-                        compassButton
-                        mapControlsCapsule
-                    }
+                    mapControlsCapsule
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
@@ -1022,9 +982,6 @@ struct LocationSimulationView: View {
                     }
                 }
                 .mapStyle(mapStyle)
-                .onMapCameraChange(frequency: .continuous) { context in
-                    mapHeading = context.camera.heading
-                }
                 .onMapCameraChange(frequency: .onEnd) { context in
                     handleCameraChange(region: context.region)
                 }
@@ -1034,6 +991,7 @@ struct LocationSimulationView: View {
                     }
                 }
                 .mapControls {
+                    MapCompass()
                     MapScaleView()
                 }
             }
