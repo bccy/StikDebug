@@ -1823,9 +1823,10 @@ struct BookmarksView: View {
                                     Button {
                                         beginEdit(bookmark)
                                     } label: {
-                                        Image(systemName: "pencil")
-                                            .font(.system(size: 13, weight: .semibold))
-                                            .frame(width: 30, height: 30)
+                                        Label("修改", systemImage: "pencil")
+                                            .font(.footnote.weight(.semibold))
+                                            .padding(.vertical, 6)
+                                            .padding(.horizontal, 10)
                                     }
                                     .buttonStyle(.bordered)
                                     .tint(.blue)
@@ -1833,9 +1834,10 @@ struct BookmarksView: View {
                                     Button {
                                         deleteBookmark(bookmark)
                                     } label: {
-                                        Image(systemName: "trash")
-                                            .font(.system(size: 13, weight: .semibold))
-                                            .frame(width: 30, height: 30)
+                                        Label("删除", systemImage: "trash")
+                                            .font(.footnote.weight(.semibold))
+                                            .padding(.vertical, 6)
+                                            .padding(.horizontal, 10)
                                     }
                                     .buttonStyle(.bordered)
                                     .tint(.red)
