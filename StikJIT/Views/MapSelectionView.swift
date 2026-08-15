@@ -1814,10 +1814,12 @@ struct BookmarksView: View {
                                             .foregroundStyle(.secondary)
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
 
                                 if isEditing {
+                                    Spacer(minLength: 0)
                                     Button {
                                         beginEdit(bookmark)
                                     } label: {
