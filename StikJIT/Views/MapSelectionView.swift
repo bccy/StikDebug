@@ -964,6 +964,14 @@ struct LocationSimulationView: View {
                 loadBookmarks()
                 restoreActiveSimulationState()
                 headingProvider.start()
+                // 预热真实定位缓存:主动请求一次定位,确保停止模拟后能立即回位
+                if simulatedCoordinate == nil {
+                    currentLocationProvider.requestCurrentLocation { location in
+                        if let location {
+                            lastRealLocation = location.coordinate
+                        }
+                    }
+                }
             }
             .onChange(of: searchRequested) { _, requested in
                 if requested {
@@ -1238,37 +1246,25 @@ struct LocationSimulationView: View {
         routePlaybackSamples = []
         recenterState = .idle
 
-        // 等待 GPS 重新定位后自动补正(模拟期间移动过的情况)
+        // 等待真实定位到达后自动补正(模拟期间移动过的情况)
         isPendingRealLocationRecenter = true
 
-        isMapVisible = false
-        Task { @MainActor in
-            await Task.yield()
-            if let real = lastRealLocation {
-                // 用缓存的真实定位立即居中,不等 GPS 重新定位;
-                // GPS 是 WGS-84,居中前转成地图坐标系 GCJ-02
-                position = .region(
-                    MKCoordinateRegion(
-                        center: ChinaCoordinateConverter.wgs84ToGCJ02(real),
-                        latitudinalMeters: 1000,
-                        longitudinalMeters: 1000
-                    )
-                )
-            } else {
-                position = .userLocation(fallback: .automatic)
-            }
-            mapReloadID = UUID()
-            isMapVisible = true
+        if let real = lastRealLocation {
+            // 有缓存:立即动画跳到缓存的真实位置,不等 GPS
+            // GPS 是 WGS-84,居中前转成地图坐标系 GCJ-02
+            centerMap(on: ChinaCoordinateConverter.wgs84ToGCJ02(real), duration: 0.35)
+        } else {
+            position = .userLocation(fallback: .automatic)
+        }
 
-            // 主动发送一次定位请求(requestLocation 一次性定位),
-            // 强制 GPS 尽快出真实位置;结果到达后自动补正地图
-            currentLocationProvider.requestCurrentLocation { location in
-                guard let location else { return }
-                lastRealLocation = location.coordinate
-                guard isPendingRealLocationRecenter else { return }
-                isPendingRealLocationRecenter = false
-                centerMap(on: ChinaCoordinateConverter.wgs84ToGCJ02(location.coordinate), duration: 0.5)
-            }
+        // 主动发送一次性定位请求(requestLocation),强制 GPS 尽快出真实位置;
+        // 结果到达后自动补正地图到蓝点所在位置
+        currentLocationProvider.requestCurrentLocation { location in
+            guard let location else { return }
+            lastRealLocation = location.coordinate
+            guard isPendingRealLocationRecenter else { return }
+            isPendingRealLocationRecenter = false
+            centerMap(on: ChinaCoordinateConverter.wgs84ToGCJ02(location.coordinate), duration: 0.5)
         }
     }
 
