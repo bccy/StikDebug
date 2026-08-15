@@ -875,6 +875,17 @@ struct LocationSimulationView: View {
             bookmarks.remove(atOffsets: offsets)
             saveBookmarks()
         }
+        .presentationDetents([.height(bookmarksSheetHeight)])
+    }
+
+    private var bookmarksSheetHeight: CGFloat {
+        let rowHeight: CGFloat = 60
+        let headerHeight: CGFloat = 120
+        let maxHeight = UIScreen.main.bounds.height - 100
+        let contentHeight = bookmarks.isEmpty
+            ? 220
+            : CGFloat(bookmarks.count) * rowHeight + headerHeight
+        return min(contentHeight, maxHeight)
     }
 
     private var routeSearchSheet: some View {
