@@ -1418,14 +1418,15 @@ struct LocationSimulationView: View {
                         routePlaybackSamples.isEmpty
                     )
 
-                Button {
-                    playButtonHaptic()
-                    resetRouteSelection()
-                } label: {
-                    Text("重置")
-                }
+                if !isBusy && !isRouteRunning {
+                    Button {
+                        playButtonHaptic()
+                        resetRouteSelection()
+                    } label: {
+                        Text("取消")
+                    }
                     .buttonStyle(.bordered)
-                    .disabled(isBusy || isRouteRunning)
+                }
             }
         }
     }
