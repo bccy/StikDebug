@@ -47,7 +47,7 @@ final class JITEnableContext {
         // Keep the path storage alive for the singleton's lifetime so any
         // pointer retained by the FFI logger stays valid.
         loggerPathStorage = Array(logURL.path.utf8CString)
-        loggerPathStorage.withUnsafeBufferPointer { buffer in
+        loggerPathStorage.withUnsafeMutableBufferPointer { buffer in
             _ = idevice_init_logger(Info, Debug, buffer.baseAddress)
         }
     }
@@ -195,11 +195,11 @@ final class JITEnableContext {
             }
 
             self.tunnelLock.lock()
-            if let handshake {
+            if let handshake = self.handshake {
                 self.handshake = nil
                 rsd_handshake_free(handshake)
             }
-            if let adapter {
+            if let adapter = self.adapter {
                 self.adapter = nil
                 adapter_free(adapter)
             }
