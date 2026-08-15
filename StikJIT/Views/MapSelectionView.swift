@@ -1923,28 +1923,33 @@ struct BookmarksView: View {
                                 .buttonStyle(.plain)
 
                                 if isEditing {
-                                    Spacer(minLength: 0)
+                                    Spacer(minLength: 8)
                                     Button {
                                         beginEdit(bookmark)
                                     } label: {
-                                        Image(systemName: "pencil")
-                                            .font(.system(size: 13, weight: .semibold))
-                                            .frame(width: 30, height: 30)
+                                        Label("编辑", systemImage: "pencil")
+                                            .font(.footnote.weight(.semibold))
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 8)
+                                            .background(RoundedRectangle(cornerRadius: 9).fill(Color.blue))
                                     }
-                                    .buttonStyle(.bordered)
-                                    .tint(.blue)
+                                    .buttonStyle(.plain)
 
                                     Button {
                                         deleteBookmark(bookmark)
                                     } label: {
-                                        Image(systemName: "trash")
-                                            .font(.system(size: 13, weight: .semibold))
-                                            .frame(width: 30, height: 30)
+                                        Label("删除", systemImage: "trash")
+                                            .font(.footnote.weight(.semibold))
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 8)
+                                            .background(RoundedRectangle(cornerRadius: 9).fill(Color.red))
                                     }
-                                    .buttonStyle(.bordered)
-                                    .tint(.red)
+                                    .buttonStyle(.plain)
                                 }
                             }
+                            .listRowBackground(Color.clear)
                         }
                         .onDelete(perform: onDelete)
                     }
