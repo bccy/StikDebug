@@ -854,6 +854,7 @@ struct LocationSimulationView: View {
             saveBookmarks()
         }
         .presentationDetents([.height(bookmarksSheetHeight)])
+        .presentationBackground(.clear)
     }
 
     private var bookmarksSheetHeight: CGFloat {
@@ -1666,7 +1667,7 @@ private struct RouteSearchSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium, .height(UIScreen.main.bounds.height - 60)])
         .presentationBackground(.clear)
         .onAppear {
             if startSelection == nil {
@@ -1810,6 +1811,7 @@ struct BookmarksView: View {
                         }
                         .onDelete(perform: onDelete)
                     }
+                    .scrollContentBackground(.hidden)
                 }
             }
             .navigationTitle("收藏")
