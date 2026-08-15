@@ -495,6 +495,15 @@ private final class MapHeadingProvider: NSObject, ObservableObject, CLLocationMa
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
 }
 
+private func availableScreenHeight() -> CGFloat {
+    let insets = UIApplication.shared.connectedScenes
+        .compactMap { $0 as? UIWindowScene }
+        .first?
+        .keyWindow?
+        .safeAreaInsets ?? .zero
+    return UIScreen.main.bounds.height - insets.top - insets.bottom
+}
+
 private enum MapLayer: String, CaseIterable, Identifiable {
     case standard
     case satellite
@@ -1029,7 +1038,7 @@ struct LocationSimulationView: View {
     private var bookmarksSheetHeight: CGFloat {
         let rowHeight: CGFloat = 60
         let headerHeight: CGFloat = 120
-        let maxHeight = UIScreen.main.bounds.height * 0.92
+        let maxHeight = availableScreenHeight() * 0.92
         let contentHeight = bookmarks.isEmpty
             ? 220
             : CGFloat(bookmarks.count) * rowHeight + headerHeight
@@ -1854,7 +1863,7 @@ private struct RouteSearchSheet: View {
             ? 0
             : min(CGFloat(activeResults.count) * 44, 260)
         let hintHeight: CGFloat = (errorMessage == nil && activeResults.isEmpty && !isResolvingSelection) ? 30 : 0
-        return min(baseHeight + resultsHeight + hintHeight, UIScreen.main.bounds.height * 0.92)
+        return min(baseHeight + resultsHeight + hintHeight, availableScreenHeight() * 0.92)
     }
 
     private func routeField(
