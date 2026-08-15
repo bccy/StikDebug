@@ -2,6 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>zh-Hans</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>zh-Hans</string>
+		<string>en</string>
+	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>StikDebug 需要访问当前位置，以便在地图上快速回到您的实际位置。</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
