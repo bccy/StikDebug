@@ -344,31 +344,9 @@ struct LocationBookmark: Identifiable, Codable, Equatable {
     var name: String
     var latitude: Double
     var longitude: Double
-    var note: String = ""
 
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case id, name, latitude, longitude, note
-    }
-
-    init(id: UUID = UUID(), name: String, latitude: Double, longitude: Double, note: String = "") {
-        self.id = id
-        self.name = name
-        self.latitude = latitude
-        self.longitude = longitude
-        self.note = note
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        name = try container.decode(String.self, forKey: .name)
-        latitude = try container.decode(Double.self, forKey: .latitude)
-        longitude = try container.decode(Double.self, forKey: .longitude)
-        note = try container.decodeIfPresent(String.self, forKey: .note) ?? ""
     }
 }
 
@@ -1687,7 +1665,7 @@ private struct RouteSearchSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium, .fraction(0.92)])
         .onAppear {
             if startSelection == nil {
                 focusedField = .start
@@ -1801,13 +1779,13 @@ struct BookmarksView: View {
     let onDelete: (IndexSet) -> Void
 
     @State private var isEditing = false
-    @State private var bookmarkPendingNoteEdit: LocationBookmark?
-    @State private var noteText = ""
+    @State private var bookmarkPendingEdit: LocationBookmark?
+    @State private var nameText = ""
 
-    private var isNoteEditorPresented: Binding<Bool> {
+    private var isEditorPresented: Binding<Bool> {
         Binding(
-            get: { bookmarkPendingNoteEdit != nil },
-            set: { if !$0 { bookmarkPendingNoteEdit = nil } }
+            get: { bookmarkPendingEdit != nil },
+            set: { if !$0 { bookmarkPendingEdit = nil } }
         )
     }
 
@@ -1830,11 +1808,6 @@ struct BookmarksView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(bookmark.name)
                                             .foregroundStyle(.primary)
-                                        if !bookmark.note.isEmpty {
-                                            Text(bookmark.note)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
                                         Text(String(format: "%.6f, %.6f", bookmark.latitude, bookmark.longitude))
                                             .font(.caption.monospaced())
                                             .foregroundStyle(.secondary)
@@ -1844,12 +1817,11 @@ struct BookmarksView: View {
 
                                 if isEditing {
                                     Button {
-                                        beginNoteEdit(bookmark)
+                                        beginEdit(bookmark)
                                     } label: {
-                                        Label("修改", systemImage: "pencil")
-                                            .font(.callout)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 6)
+                                        Image(systemName: "pencil")
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .frame(width: 30, height: 30)
                                     }
                                     .buttonStyle(.bordered)
                                     .tint(.blue)
@@ -1857,10 +1829,9 @@ struct BookmarksView: View {
                                     Button {
                                         deleteBookmark(bookmark)
                                     } label: {
-                                        Label("删除", systemImage: "trash")
-                                            .font(.callout)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 6)
+                                        Image(systemName: "trash")
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .frame(width: 30, height: 30)
                                     }
                                     .buttonStyle(.bordered)
                                     .tint(.red)
@@ -1875,7 +1846,7 @@ struct BookmarksView: View {
                                 .tint(.red)
 
                                 Button {
-                                    beginNoteEdit(bookmark)
+                                    beginEdit(bookmark)
                                 } label: {
                                     Label("修改", systemImage: "pencil")
                                 }
@@ -1897,17 +1868,17 @@ struct BookmarksView: View {
                     }
                 }
             }
-            .alert("修改备注", isPresented: isNoteEditorPresented) {
-                TextField("备注", text: $noteText)
-                Button("保存") { saveNote() }
-                Button("取消", role: .cancel) { bookmarkPendingNoteEdit = nil }
+            .alert("修改收藏", isPresented: isEditorPresented) {
+                TextField("名称", text: $nameText)
+                Button("保存") { saveEdit() }
+                Button("取消", role: .cancel) { bookmarkPendingEdit = nil }
             }
         }
     }
 
-    private func beginNoteEdit(_ bookmark: LocationBookmark) {
-        noteText = bookmark.note
-        bookmarkPendingNoteEdit = bookmark
+    private func beginEdit(_ bookmark: LocationBookmark) {
+        nameText = bookmark.name
+        bookmarkPendingEdit = bookmark
     }
 
     private func deleteBookmark(_ bookmark: LocationBookmark) {
@@ -1915,10 +1886,11 @@ struct BookmarksView: View {
         onDelete(IndexSet(integer: index))
     }
 
-    private func saveNote() {
-        defer { bookmarkPendingNoteEdit = nil }
-        guard let target = bookmarkPendingNoteEdit,
+    private func saveEdit() {
+        defer { bookmarkPendingEdit = nil }
+        guard let target = bookmarkPendingEdit,
               let index = bookmarks.firstIndex(where: { $0.id == target.id }) else { return }
-        bookmarks[index].note = noteText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = nameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        bookmarks[index].name = trimmed.isEmpty ? target.name : trimmed
     }
 }
