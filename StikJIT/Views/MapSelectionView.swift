@@ -1007,12 +1007,12 @@ struct LocationSimulationView: View {
                         )
                     }
                 }
-                .onChange(of: headingProvider.userLocation) { _, newLocation in
-                    guard let newLocation else { return }
+                .onChange(of: headingProvider.userLocation.map { ($0.latitude, $0.longitude) }) { _, newPair in
+                    guard let newPair else { return }
                     // 非模拟状态下的定位更新 = 真实定位,持续缓存;
                     // 模拟状态下不更新(此时系统定位是假位置)
                     if simulatedCoordinate == nil {
-                        lastRealLocation = newLocation
+                        lastRealLocation = CLLocationCoordinate2D(latitude: newPair.0, longitude: newPair.1)
                     }
                 }
 
