@@ -637,6 +637,7 @@ struct LocationSimulationView: View {
     @State private var selectedMapLayer: MapLayer = .standard
     @State private var recenterState: RecenterState = .idle
     @State private var lastRealLocation: CLLocationCoordinate2D?
+    @State private var isPendingRealLocationRecenter = false
     @StateObject private var headingProvider = MapHeadingProvider()
 
     @State private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
@@ -1013,6 +1014,12 @@ struct LocationSimulationView: View {
                     // 模拟状态下不更新(此时系统定位是假位置)
                     if simulatedCoordinate == nil {
                         lastRealLocation = newSnapshot.coordinate
+                        // 刚停止模拟:GPS 重新定位到的新真实位置到达后,自动补正地图
+                        // (覆盖"模拟期间用户移动过"的情况)
+                        if isPendingRealLocationRecenter {
+                            isPendingRealLocationRecenter = false
+                            centerMap(on: newSnapshot.coordinate, duration: 0.5)
+                        }
                     }
                 }
 
@@ -1229,6 +1236,9 @@ struct LocationSimulationView: View {
         routeEndSelection = nil
         routePlaybackSamples = []
         recenterState = .idle
+
+        // 等待 GPS 重新定位后自动补正(模拟期间移动过的情况)
+        isPendingRealLocationRecenter = true
 
         isMapVisible = false
         Task { @MainActor in
