@@ -839,15 +839,6 @@ struct LocationSimulationView: View {
         return "可从工具栏规划路线。"
     }
 
-    private var routeAttributionLink: some View {
-        Link(
-            "限速数据 © OpenStreetMap 贡献者 (ODbL)",
-            destination: OpenStreetMapSpeedLimitService.copyrightURL
-        )
-        .font(.caption2)
-        .foregroundStyle(.secondary)
-    }
-
     private var searchResultsListBase: some View {
         List(searchCompleter.results.prefix(5), id: \.self) { result in
             Button {
@@ -1350,8 +1341,6 @@ struct LocationSimulationView: View {
                     .font(.footnote.monospaced())
                     .foregroundStyle(.secondary)
             }
-
-            routeAttributionLink
 
             HStack(spacing: 12) {
                 if hasActiveSimulation {
