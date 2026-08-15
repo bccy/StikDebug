@@ -1137,13 +1137,25 @@ struct LocationSimulationView: View {
         RouteSearchSheet(
             initialStart: routeStartSelection,
             initialEnd: routeEndSelection,
-            currentUserLocation: simulatedCoordinate ?? headingProvider.userLocation,
+            currentUserLocation: currentUserLocationForRoute,
             bookmarks: bookmarks
         ) { startSelection, endSelection in
             routeStartSelection = startSelection
             routeEndSelection = endSelection
             refreshRoute()
         }
+    }
+
+    // 导航起点"使用当前定位"的坐标:统一到地图坐标系(GCJ-02)。
+    // 模拟定位的 simulatedCoordinate 已是地图坐标系;真实 GPS 是 WGS-84,需转换。
+    private var currentUserLocationForRoute: CLLocationCoordinate2D? {
+        if let simulated = simulatedCoordinate {
+            return simulated
+        }
+        if let real = headingProvider.userLocation {
+            return ChinaCoordinateConverter.wgs84ToGCJ02(real)
+        }
+        return nil
     }
 
     private func loadBookmarks() {
