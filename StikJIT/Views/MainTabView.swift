@@ -55,15 +55,18 @@ struct MainTabView: View {
         .onChange(of: selection) { _, newValue in
             switch newValue {
             case Self.actionBookmarksTag:
-                selection = activeTab
+                selection = Self.locationTag
+                activeTab = Self.locationTag
                 playButtonHaptic()
                 showBookmarks = true
             case Self.actionRouteTag:
-                selection = activeTab
+                selection = Self.locationTag
+                activeTab = Self.locationTag
                 playButtonHaptic()
                 showRouteSearch = true
             case Self.actionImportTag:
-                selection = activeTab
+                selection = Self.locationTag
+                activeTab = Self.locationTag
                 showCoordinateImporter = true
             default:
                 activeTab = newValue
