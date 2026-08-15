@@ -1022,7 +1022,18 @@ struct LocationSimulationView: View {
             bookmarks.remove(atOffsets: offsets)
             saveBookmarks()
         }
+        .presentationDetents([.height(bookmarksSheetHeight)])
         .presentationDragIndicator(.visible)
+    }
+
+    private var bookmarksSheetHeight: CGFloat {
+        let rowHeight: CGFloat = 60
+        let headerHeight: CGFloat = 120
+        let maxHeight = UIScreen.main.bounds.height * 0.92
+        let contentHeight = bookmarks.isEmpty
+            ? 220
+            : CGFloat(bookmarks.count) * rowHeight + headerHeight
+        return min(contentHeight, maxHeight)
     }
 
     private var routeSearchSheet: some View {
@@ -1737,74 +1748,76 @@ private struct RouteSearchSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                routeField(
-                    title: "起点",
-                    icon: "circle.fill",
-                    tint: .green,
-                    text: $startQuery,
-                    selection: startSelection,
-                    field: .start
-                )
+            // 内容包在 ScrollView:可滚动内容不会触发键盘顶全屏
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    routeField(
+                        title: "起点",
+                        icon: "circle.fill",
+                        tint: .green,
+                        text: $startQuery,
+                        selection: startSelection,
+                        field: .start
+                    )
 
-                routeField(
-                    title: "终点",
-                    icon: "flag.checkered.circle.fill",
-                    tint: .red,
-                    text: $endQuery,
-                    selection: endSelection,
-                    field: .end
-                )
+                    routeField(
+                        title: "终点",
+                        icon: "flag.checkered.circle.fill",
+                        tint: .red,
+                        text: $endQuery,
+                        selection: endSelection,
+                        field: .end
+                    )
 
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
-                }
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
 
-                if isResolvingSelection {
-                    ProgressView("正在解析位置…")
-                        .font(.footnote)
-                } else if !activeResults.isEmpty {
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(Array(activeResults.enumerated()), id: \.offset) { index, result in
-                                Button {
-                                    resolve(result)
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(result.title)
-                                            .font(.subheadline)
-                                            .foregroundStyle(.primary)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                        if !result.subtitle.isEmpty {
-                                            Text(result.subtitle)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
+                    if isResolvingSelection {
+                        ProgressView("正在解析位置…")
+                            .font(.footnote)
+                    } else if !activeResults.isEmpty {
+                        ScrollView {
+                            LazyVStack(spacing: 0) {
+                                ForEach(Array(activeResults.enumerated()), id: \.offset) { index, result in
+                                    Button {
+                                        resolve(result)
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(result.title)
+                                                .font(.subheadline)
+                                                .foregroundStyle(.primary)
                                                 .frame(maxWidth: .infinity, alignment: .leading)
+                                            if !result.subtitle.isEmpty {
+                                                Text(result.subtitle)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                            }
                                         }
+                                        .padding(.vertical, 10)
+                                        .padding(.horizontal, 12)
                                     }
-                                    .padding(.vertical, 10)
-                                    .padding(.horizontal, 12)
-                                }
-                                .buttonStyle(.plain)
+                                    .buttonStyle(.plain)
 
-                                if index < activeResults.count - 1 {
-                                    Divider()
+                                    if index < activeResults.count - 1 {
+                                        Divider()
+                                    }
                                 }
                             }
                         }
+                        .frame(maxHeight: 260)
+                    } else {
+                        Text("搜索起点和终点来生成路线。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
-                    .frame(maxHeight: 260)
-                } else {
-                    Text("搜索起点和终点来生成路线。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
                 }
-
-                Spacer(minLength: 0)
+                .padding(16)
             }
-            .padding(16)
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("模拟路线")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1824,6 +1837,8 @@ private struct RouteSearchSheet: View {
                 }
             }
         }
+        // 高度随内容自适应(搜索结果显示时变高),最多 92%
+        .presentationDetents([.height(sheetHeight)])
         .onAppear {
             if startSelection == nil {
                 focusedField = .start
@@ -1831,6 +1846,15 @@ private struct RouteSearchSheet: View {
                 focusedField = .end
             }
         }
+    }
+
+    private var sheetHeight: CGFloat {
+        let baseHeight: CGFloat = 250
+        let resultsHeight: CGFloat = activeResults.isEmpty
+            ? 0
+            : min(CGFloat(activeResults.count) * 44, 260)
+        let hintHeight: CGFloat = (errorMessage == nil && activeResults.isEmpty && !isResolvingSelection) ? 30 : 0
+        return min(baseHeight + resultsHeight + hintHeight, UIScreen.main.bounds.height * 0.92)
     }
 
     private func routeField(
