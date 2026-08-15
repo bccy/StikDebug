@@ -22,6 +22,15 @@ struct MainTabView: View {
                 .tabItem { Label("设置", systemImage: "gearshape.fill") }
                 .tag("settings")
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowPairingFilePicker"))) { _ in
+            guard selection != "settings" else { return }
+            // SettingsView may not exist yet (lazy TabView); switch to it and
+            // re-post once it is on screen so its picker can react.
+            selection = "settings"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                NotificationCenter.default.post(name: NSNotification.Name("ShowPairingFilePicker"), object: nil)
+            }
+        }
     }
 }
 

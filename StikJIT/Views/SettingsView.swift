@@ -131,7 +131,8 @@ struct SettingsView: View {
                         }
                     }
                     .onChange(of: keepAliveLocation) { _, enabled in
-                        if !enabled { BackgroundLocationManager.shared.stop() }
+                        if enabled { BackgroundLocationManager.shared.start() }
+                        else { BackgroundLocationManager.shared.stop() }
                     }
                 } header: {
                     Text("后台保活")

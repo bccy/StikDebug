@@ -34,6 +34,7 @@ final class JITEnableContext {
     private var tunnelConnecting = false
     private var tunnelSemaphore: DispatchSemaphore?
     private var lastTunnelError: NSError?
+    private let loggerPathStorage: [CChar]
 
     var adapterHandle: OpaquePointer? { adapter }
     var handshakeHandle: OpaquePointer? { handshake }
@@ -43,8 +44,10 @@ final class JITEnableContext {
             .urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("idevice_log.txt")
 
-        var path = Array(logURL.path.utf8CString)
-        path.withUnsafeMutableBufferPointer { buffer in
+        // Keep the path storage alive for the singleton's lifetime so any
+        // pointer retained by the FFI logger stays valid.
+        loggerPathStorage = Array(logURL.path.utf8CString)
+        loggerPathStorage.withUnsafeBufferPointer { buffer in
             _ = idevice_init_logger(Info, Debug, buffer.baseAddress)
         }
     }
@@ -139,6 +142,8 @@ final class JITEnableContext {
         }
 
         if let ffiError {
+            var partialTunnel = tunnel
+            partialTunnel.free()
             throw error(from: ffiError, fallback: "创建隧道失败")
         }
 
@@ -151,6 +156,8 @@ final class JITEnableContext {
         return tunnel
     }
 
+    private static let tunnelTimeout: TimeInterval = 30
+
     func startTunnel() throws {
         tunnelLock.lock()
         if tunnelConnecting {
@@ -158,8 +165,9 @@ final class JITEnableContext {
             tunnelLock.unlock()
 
             if let waitSemaphore {
-                waitSemaphore.wait()
-                waitSemaphore.signal()
+                if waitSemaphore.wait(timeout: .now() + Self.tunnelTimeout) == .timedOut {
+                    throw makeError("连接设备超时，请确认配对文件、定位服务与设备状态。", code: -19)
+                }
             }
 
             if let lastTunnelError {
@@ -177,33 +185,40 @@ final class JITEnableContext {
         var newHandshake: OpaquePointer?
         var finalError: NSError?
 
-        defer {
-            tunnelLock.lock()
-            tunnelConnecting = false
-            tunnelSemaphore = nil
-            lastTunnelError = finalError
-            tunnelLock.unlock()
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let newTunnel = try self.createTunnel(hostname: "StikDebug")
+                newAdapter = newTunnel.adapter
+                newHandshake = newTunnel.handshake
+            } catch let tunnelError as NSError {
+                finalError = tunnelError
+            }
+
+            self.tunnelLock.lock()
+            if let handshake {
+                self.handshake = nil
+                rsd_handshake_free(handshake)
+            }
+            if let adapter {
+                self.adapter = nil
+                adapter_free(adapter)
+            }
+            self.adapter = newAdapter
+            self.handshake = newHandshake
+            self.tunnelConnecting = false
+            self.tunnelSemaphore = nil
+            self.lastTunnelError = finalError
+            self.tunnelLock.unlock()
             completionSemaphore.signal()
         }
 
-        do {
-            let newTunnel = try createTunnel(hostname: "StikDebug")
-            newAdapter = newTunnel.adapter
-            newHandshake = newTunnel.handshake
-        } catch let tunnelError as NSError {
-            finalError = tunnelError
-            throw tunnelError
+        if completionSemaphore.wait(timeout: .now() + Self.tunnelTimeout) == .timedOut {
+            // The background attempt keeps running; a later call retries.
+            throw makeError("连接设备超时，请确认配对文件、定位服务与设备状态。", code: -19)
         }
-
-        if let handshake {
-            rsd_handshake_free(handshake)
+        if let finalError {
+            throw finalError
         }
-        if let adapter {
-            adapter_free(adapter)
-        }
-
-        adapter = newAdapter
-        handshake = newHandshake
     }
 
     func ensureTunnel() throws {

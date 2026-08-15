@@ -67,11 +67,29 @@ enum ChinaCoordinateConverter {
 
     // MARK: - China Boundary Check
 
-    /// Rough bounding-rectangle test for mainland China.
+    /// Rough bounding-rectangle test for mainland China, excluding regions
+    /// that do NOT use GCJ-02 (Hong Kong, Macau, Taiwan, Seoul area).
     static func isInsideChina(_ coordinate: CLLocationCoordinate2D) -> Bool {
         let lat = coordinate.latitude
         let lng = coordinate.longitude
-        return lat >= 0.8293 && lat <= 55.8271 && lng >= 72.004 && lng <= 137.8347
+        guard lat >= 0.8293 && lat <= 55.8271 && lng >= 72.004 && lng <= 137.8347 else {
+            return false
+        }
+
+        // These regions use WGS-84 grids; applying GCJ-02 there would add a
+        // 100-700 m offset.
+        let exclusions: [(CLLocationDegrees, CLLocationDegrees, CLLocationDegrees, CLLocationDegrees)] = [
+            (21.80, 25.40, 119.90, 122.10), // Taiwan
+            (22.08, 22.60, 113.40, 114.50), // Hong Kong
+            (22.05, 22.25, 113.50, 113.70), // Macau
+            (37.20, 37.80, 126.70, 127.30)  // Seoul
+        ]
+        for (minLat, maxLat, minLng, maxLng) in exclusions {
+            if lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng {
+                return false
+            }
+        }
+        return true
     }
 
     // MARK: - Internals

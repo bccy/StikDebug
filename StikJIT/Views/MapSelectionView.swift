@@ -25,6 +25,10 @@ private struct CoordinateSnapshot: Equatable {
     }
 }
 
+private final class ResendFailureCounter {
+    var count = 0
+}
+
 private struct RouteSearchSelection {
     let title: String
     let coordinate: CLLocationCoordinate2D
@@ -815,6 +819,7 @@ struct LocationSimulationView: View {
     private static let activeSimulationLatitudeKey = "activeSimulationLatitude"
     private static let activeSimulationLongitudeKey = "activeSimulationLongitude"
 
+    @Environment(\.scenePhase) private var scenePhase
     @State private var coordinate: CLLocationCoordinate2D?
     @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var mapReloadID = UUID()
@@ -1069,7 +1074,6 @@ struct LocationSimulationView: View {
                 }
                 .padding(.bottom, 24)
                 .padding(.horizontal, 16)
-                .padding(.horizontal, 16)
             }
 
         }
@@ -1157,6 +1161,12 @@ struct LocationSimulationView: View {
         .onAppear {
             loadBookmarks()
             restoreActiveSimulationState()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                // The resend timer is suspended in background; rebuild it on return.
+                restoreActiveSimulationState()
+            }
         }
         .onDisappear {
             routeLoadTask?.cancel()
@@ -1302,14 +1312,6 @@ struct LocationSimulationView: View {
                     longitudinalMeters: 1000
                 )
             )
-        }
-    }
-
-    private func requestCurrentLocation() async -> CLLocation? {
-        await withCheckedContinuation { continuation in
-            currentLocationProvider.requestCurrentLocation { location in
-                continuation.resume(returning: location)
-            }
         }
     }
 
@@ -1578,7 +1580,11 @@ struct LocationSimulationView: View {
     ) {
         guard !isRouteRunning else { return }
 
-        let coordinates = importedCoordinates.filter(CLLocationCoordinate2DIsValid)
+        // GPX/KML/GeoJSON files are WGS-84. The send path converts GCJ-02 back
+        // to WGS-84, so pre-convert here once to keep the file coordinates exact.
+        let coordinates = importedCoordinates
+            .filter(CLLocationCoordinate2DIsValid)
+            .map(ChinaCoordinateConverter.wgs84ToGCJ02)
         guard let firstCoordinate = coordinates.first else {
             showImportError(CoordinateImportError.noCoordinates)
             return
@@ -1628,6 +1634,7 @@ struct LocationSimulationView: View {
         let requestID = UUID()
         routeRequestID = requestID
         isPrefetchingRouteSpeeds = true
+        startRouteSpeedProgressAnimation(requestID: requestID)
         routeSpeedPrefetchTask = Task(priority: .utility) {
             let playbackSamples = await prefetchRoutePlaybackSamples(
                 displayCoordinates: displayCoordinates,
@@ -1663,7 +1670,11 @@ struct LocationSimulationView: View {
         runLocationCommand(
             errorTitle: "清除失败",
             errorMessage: { code in "无法清除模拟位置（错误 \(code)）。" },
-            operation: clear_simulated_location
+            operation: {
+                let code = clear_simulated_location()
+                // 12 = nothing was simulated; treat as success.
+                return code == 12 ? 0 : code
+            }
         ) {
             stopResendTimer()
             simulatedCoordinate = nil
@@ -1689,10 +1700,23 @@ struct LocationSimulationView: View {
         simulatedCoordinate = coordinate
         persistActiveSimulation(coordinate)
         resendTimer?.invalidate()
-        resendTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { _ in
-            guard let simulatedCoordinate else { return }
+        let failures = ResendFailureCounter()
+        resendTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { [weak self] _ in
+            guard let self, let simulatedCoordinate = self.simulatedCoordinate else { return }
             Self.locationQueue.async {
-                _ = locationUpdateCode(for: simulatedCoordinate)
+                let code = self.locationUpdateCode(for: simulatedCoordinate)
+                if code == 0 {
+                    failures.count = 0
+                } else {
+                    failures.count += 1
+                    if failures.count == 3 {
+                        DispatchQueue.main.async {
+                            self.alertTitle = "模拟连接中断"
+                            self.alertMessage = "无法更新模拟位置，请确认定位服务(VPN)仍处于连接状态，并尝试重新模拟。"
+                            self.showAlert = true
+                        }
+                    }
+                }
             }
         }
     }
@@ -1722,6 +1746,10 @@ struct LocationSimulationView: View {
         let defaults = UserDefaults.standard
         guard defaults.object(forKey: Self.activeSimulationLatitudeKey) != nil,
               defaults.object(forKey: Self.activeSimulationLongitudeKey) != nil else {
+            return
+        }
+        guard pairingExists else {
+            clearPersistedActiveSimulation()
             return
         }
 
@@ -1946,8 +1974,20 @@ struct LocationSimulationView: View {
 
     private func sendLocationUpdate(for coordinate: CLLocationCoordinate2D) async -> Int32 {
         await withCheckedContinuation { continuation in
+            let lock = NSLock()
+            var resumed = false
+            func resumeOnce(_ value: Int32) {
+                lock.lock()
+                defer { lock.unlock() }
+                guard !resumed else { return }
+                resumed = true
+                continuation.resume(returning: value)
+            }
             Self.locationQueue.async {
-                continuation.resume(returning: locationUpdateCode(for: coordinate))
+                resumeOnce(self.locationUpdateCode(for: coordinate))
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+                resumeOnce(-2)
             }
         }
     }
