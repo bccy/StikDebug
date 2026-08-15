@@ -1927,24 +1927,22 @@ struct BookmarksView: View {
                                     Button {
                                         beginEdit(bookmark)
                                     } label: {
-                                        Label("编辑", systemImage: "pencil")
-                                            .font(.footnote.weight(.semibold))
+                                        Image(systemName: "pencil")
+                                            .font(.system(size: 13, weight: .bold))
                                             .foregroundStyle(.white)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 8)
-                                            .background(RoundedRectangle(cornerRadius: 9).fill(Color.blue))
+                                            .frame(width: 30, height: 30)
+                                            .background(Circle().fill(Color.blue))
                                     }
                                     .buttonStyle(.plain)
 
                                     Button {
                                         deleteBookmark(bookmark)
                                     } label: {
-                                        Label("删除", systemImage: "trash")
-                                            .font(.footnote.weight(.semibold))
+                                        Image(systemName: "minus")
+                                            .font(.system(size: 15, weight: .bold))
                                             .foregroundStyle(.white)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 8)
-                                            .background(RoundedRectangle(cornerRadius: 9).fill(Color.red))
+                                            .frame(width: 30, height: 30)
+                                            .background(Circle().fill(Color.red))
                                     }
                                     .buttonStyle(.plain)
                                 }
