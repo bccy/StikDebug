@@ -339,7 +339,7 @@ private func buildPlaybackSamples(
 
 // MARK: - Bookmark Model
 
-struct LocationBookmark: Identifiable, Codable {
+struct LocationBookmark: Identifiable, Codable, Equatable {
     var id: UUID = UUID()
     var name: String
     var latitude: Double
