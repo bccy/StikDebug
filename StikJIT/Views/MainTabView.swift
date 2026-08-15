@@ -38,11 +38,11 @@ struct MainTabView: View {
             // intercepted below, which fires the action and reverts the
             // selection so no visible page change happens.
             Color.clear
-                .tabItem { Label("书签", systemImage: "bookmark.fill") }
+                .tabItem { Label("收藏", systemImage: "bookmark.fill") }
                 .tag(Self.actionBookmarksTag)
 
             Color.clear
-                .tabItem { Label("路线", systemImage: "point.topleft.down.curvedto.point.bottomright.up") }
+                .tabItem { Label("导航", systemImage: "point.topleft.down.curvedto.point.bottomright.up") }
                 .tag(Self.actionRouteTag)
         }
         .onChange(of: selection) { _, newValue in
