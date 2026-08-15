@@ -2250,6 +2250,16 @@ struct BookmarksView: View {
     let onSelect: (LocationBookmark) -> Void
     let onDelete: (IndexSet) -> Void
 
+    @State private var bookmarkPendingEdit: LocationBookmark?
+    @State private var nameText = ""
+
+    private var isEditorPresented: Binding<Bool> {
+        Binding(
+            get: { bookmarkPendingEdit != nil },
+            set: { if !$0 { bookmarkPendingEdit = nil } }
+        )
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -2285,6 +2295,13 @@ struct BookmarksView: View {
                                 } label: {
                                     Image(systemName: "trash")
                                 }
+
+                                Button {
+                                    beginEdit(bookmark)
+                                } label: {
+                                    Image(systemName: "pencil")
+                                }
+                                .tint(.blue)
                             }
                         }
                     }
@@ -2293,6 +2310,24 @@ struct BookmarksView: View {
             }
             .navigationTitle("收藏")
             .navigationBarTitleDisplayMode(.inline)
+            .alert("编辑收藏", isPresented: isEditorPresented) {
+                TextField("地址名称", text: $nameText)
+                Button("保存") { saveEdit() }
+                Button("取消", role: .cancel) { bookmarkPendingEdit = nil }
+            }
         }
+    }
+
+    private func beginEdit(_ bookmark: LocationBookmark) {
+        nameText = bookmark.name
+        bookmarkPendingEdit = bookmark
+    }
+
+    private func saveEdit() {
+        defer { bookmarkPendingEdit = nil }
+        guard let target = bookmarkPendingEdit,
+              let index = bookmarks.firstIndex(where: { $0.id == target.id }) else { return }
+        let trimmed = nameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        bookmarks[index].name = trimmed.isEmpty ? target.name : trimmed
     }
 }
