@@ -2031,9 +2031,11 @@ private struct RouteSearchSheet: View {
     }
 
     private var sheetHeight: CGFloat {
-        // 键盘弹出:直接取"可用高度−键盘"的 92% 为极限,高度最大化且不触发全屏
+        // 键盘弹出:直接取"可用高度−键盘"的 92% 为极限,高度最大化且不触发全屏;
+        // 键盘高度尚未上报时按最小估算,防止短暂按 0 计算导致顶满
         if focusedField != nil {
-            return max((availableScreenHeight() - keyboardHeight) * 0.92, 220)
+            let keyboard = max(keyboardHeight, 260)
+            return max((availableScreenHeight() - keyboard) * 0.92, 220)
         }
         // 键盘收起:按内容自适应(搜索结果显示时变高),最多 92%
         let resultsHeight: CGFloat = activeResults.isEmpty
@@ -2195,15 +2197,16 @@ private struct RouteSearchSheet: View {
     private func update(query: String, for field: RouteSearchField) {
         switch field {
         case .start:
+            // 文本与已选条目一致时(程序设置如收藏/当前定位)不触发搜索
             if query != startSelection?.title {
                 startSelection = nil
+                startCompleter.update(query: query)
             }
-            startCompleter.update(query: query)
         case .end:
             if query != endSelection?.title {
                 endSelection = nil
+                endCompleter.update(query: query)
             }
-            endCompleter.update(query: query)
         }
     }
 
@@ -2300,6 +2303,7 @@ struct BookmarksView: View {
                                     beginEdit(bookmark)
                                 } label: {
                                     Image(systemName: "pencil")
+                                        .font(.system(size: 18, weight: .semibold))
                                 }
                                 .tint(.blue)
                             }
