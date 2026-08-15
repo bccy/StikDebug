@@ -10,53 +10,65 @@ import SwiftUI
 struct MainTabView: View {
     private static let locationTag = "location"
     private static let settingsTag = "settings"
-    private static let actionBookmarksTag = "action-bookmarks"
     private static let actionRouteTag = "action-route"
+    private static let actionBookmarksTag = "action-bookmarks"
+    private static let actionSearchTag = "action-search"
 
     @State private var selection: String = Self.locationTag
     @State private var activeTab: String = Self.locationTag
 
     @State private var showBookmarks = false
     @State private var showRouteSearch = false
+    @State private var searchRequested = false
 
     var body: some View {
         TabView(selection: $selection) {
             NavigationStack {
                 LocationSimulationView(
                     showBookmarks: $showBookmarks,
-                    showRouteSearch: $showRouteSearch
+                    showRouteSearch: $showRouteSearch,
+                    searchRequested: $searchRequested
                 )
             }
             .tabItem { Label("位置", systemImage: "location") }
             .tag(Self.locationTag)
 
-            SettingsView()
-                .tabItem { Label("设置", systemImage: "gearshape.fill") }
-                .tag(Self.settingsTag)
-
             // Fake tabs: they never actually switch pages. Tapping them is
             // intercepted below, which fires the action and reverts the
             // selection so no visible page change happens.
+            Color.clear
+                .tabItem { Label("导航", systemImage: "point.topleft.down.curvedto.point.bottomright.up") }
+                .tag(Self.actionRouteTag)
+
             Color.clear
                 .tabItem { Label("收藏", systemImage: "bookmark.fill") }
                 .tag(Self.actionBookmarksTag)
 
             Color.clear
-                .tabItem { Label("导航", systemImage: "point.topleft.down.curvedto.point.bottomright.up") }
-                .tag(Self.actionRouteTag)
+                .tabItem { Label("搜索", systemImage: "magnifyingglass") }
+                .tag(Self.actionSearchTag)
+
+            SettingsView()
+                .tabItem { Label("设置", systemImage: "gearshape.fill") }
+                .tag(Self.settingsTag)
         }
         .onChange(of: selection) { _, newValue in
             switch newValue {
-            case Self.actionBookmarksTag:
-                selection = Self.locationTag
-                activeTab = Self.locationTag
-                playButtonHaptic()
-                showBookmarks = true
             case Self.actionRouteTag:
                 selection = Self.locationTag
                 activeTab = Self.locationTag
                 playButtonHaptic()
                 showRouteSearch = true
+            case Self.actionBookmarksTag:
+                selection = Self.locationTag
+                activeTab = Self.locationTag
+                playButtonHaptic()
+                showBookmarks = true
+            case Self.actionSearchTag:
+                selection = Self.locationTag
+                activeTab = Self.locationTag
+                playButtonHaptic()
+                searchRequested = true
             default:
                 activeTab = newValue
             }

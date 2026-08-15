@@ -551,17 +551,21 @@ struct LocationSimulationView: View {
 
     @Binding var showBookmarks: Bool
     @Binding var showRouteSearch: Bool
+    @Binding var searchRequested: Bool
 
     init(
         showBookmarks: Binding<Bool>,
-        showRouteSearch: Binding<Bool>
+        showRouteSearch: Binding<Bool>,
+        searchRequested: Binding<Bool> = .constant(false)
     ) {
         _showBookmarks = showBookmarks
         _showRouteSearch = showRouteSearch
+        _searchRequested = searchRequested
     }
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var coordinate: CLLocationCoordinate2D?
+    @FocusState private var searchFieldFocused: Bool
     @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var mapReloadID = UUID()
     @State private var isMapVisible = true
@@ -895,6 +899,12 @@ struct LocationSimulationView: View {
                 restoreActiveSimulationState()
                 headingProvider.start()
             }
+            .onChange(of: searchRequested) { _, requested in
+                if requested {
+                    searchFieldFocused = true
+                    searchRequested = false
+                }
+            }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
                     // The resend timer is suspended in background; rebuild it on return.
@@ -1017,6 +1027,7 @@ struct LocationSimulationView: View {
             TextField("搜索位置…", text: $searchText)
                 .padding(.leading, 6)
                 .autocorrectionDisabled()
+                .focused($searchFieldFocused)
                 .onChange(of: searchText) { _, newValue in
                     searchCompleter.update(query: newValue)
                 }
