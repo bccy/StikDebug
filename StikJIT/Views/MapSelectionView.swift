@@ -464,7 +464,6 @@ final class NetworkPathObserver: ObservableObject {
 private enum MapLayer: String, CaseIterable, Identifiable {
     case standard
     case satellite
-    case hybrid
 
     var id: String { rawValue }
 
@@ -472,7 +471,13 @@ private enum MapLayer: String, CaseIterable, Identifiable {
         switch self {
         case .standard: return "标准"
         case .satellite: return "卫星"
-        case .hybrid: return "混合"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .standard: return "map"
+        case .satellite: return "globe.americas"
         }
     }
 }
@@ -560,33 +565,40 @@ struct LocationSimulationView: View {
         case .standard:
             return .standard(elevation: .realistic)
         case .satellite:
-            return .imagery(elevation: .realistic)
-        case .hybrid:
+            // 卫星图层带文字标注,与系统地图 App 一致
             return .hybrid(elevation: .realistic)
         }
     }
 
     private var layerToggleButton: some View {
-        Menu {
+        VStack(spacing: 0) {
             ForEach(MapLayer.allCases) { layer in
-                Button {
-                    selectedMapLayer = layer
-                } label: {
-                    if layer == selectedMapLayer {
-                        Label(layer.title, systemImage: "checkmark")
-                    } else {
-                        Text(layer.title)
-                    }
+                layerButton(layer)
+                if layer != MapLayer.allCases.last {
+                    Divider()
+                        .frame(width: 28)
                 }
             }
-        } label: {
-            Image(systemName: "square.3.layers.3d")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.primary)
-                .frame(width: 40, height: 40)
-                .background(.regularMaterial, in: Circle())
-                .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
         }
+        .background(.regularMaterial, in: Capsule())
+        .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+    }
+
+    private func layerButton(_ layer: MapLayer) -> some View {
+        Button {
+            selectedMapLayer = layer
+        } label: {
+            VStack(spacing: 2) {
+                Image(systemName: layer.icon)
+                    .font(.system(size: 15, weight: .semibold))
+                Text(layer.title)
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .foregroundStyle(selectedMapLayer == layer ? Color.accentColor : .primary)
+            .frame(width: 44, height: 46)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var recenterButton: some View {
