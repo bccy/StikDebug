@@ -807,6 +807,7 @@ struct LocationSimulationView: View {
             }
 
         }
+    }
 
     @ViewBuilder
     private var mapLayer: some View {
