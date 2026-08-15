@@ -779,13 +779,7 @@ struct LocationSimulationView: View {
                 .presentationBackground(.clear)
         }
         .sheet(isPresented: $showBookmarks) {
-            BookmarksView(bookmarks: $bookmarks) { bookmark in
-                applySelection(bookmark.coordinate)
-                showBookmarks = false
-            } onDelete: { offsets in
-                bookmarks.remove(atOffsets: offsets)
-                saveBookmarks()
-            }
+            bookmarksSheet
         }
         .onChange(of: bookmarks) { _, _ in
             saveBookmarks()
@@ -871,6 +865,16 @@ struct LocationSimulationView: View {
     }
 
     // MARK: - Bookmarks
+
+    private var bookmarksSheet: some View {
+        BookmarksView(bookmarks: $bookmarks) { bookmark in
+            applySelection(bookmark.coordinate)
+            showBookmarks = false
+        } onDelete: { offsets in
+            bookmarks.remove(atOffsets: offsets)
+            saveBookmarks()
+        }
+    }
 
     private func loadBookmarks() {
         guard let data = UserDefaults.standard.data(forKey: "locationBookmarks"),
