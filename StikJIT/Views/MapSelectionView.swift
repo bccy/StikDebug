@@ -1034,17 +1034,16 @@ struct LocationSimulationView: View {
                 }
                 .padding(.bottom, 24)
                 .padding(.horizontal, 16)
-
-                HStack {
-                    Spacer()
-                    VStack(spacing: 8) {
-                        compassView
-                        mapControlsCapsule
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 12)
             }
+
+            // 浮层:指南针+胶囊,不参与布局,不挤压中间菜单
+            VStack(spacing: 8) {
+                compassView
+                mapControlsCapsule
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
 
         }
     }
