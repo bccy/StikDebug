@@ -1259,6 +1259,16 @@ struct LocationSimulationView: View {
             }
             mapReloadID = UUID()
             isMapVisible = true
+
+            // 主动发送一次定位请求(requestLocation 一次性定位),
+            // 强制 GPS 尽快出真实位置;结果到达后自动补正地图
+            currentLocationProvider.requestCurrentLocation { location in
+                guard let location else { return }
+                lastRealLocation = location.coordinate
+                guard isPendingRealLocationRecenter else { return }
+                isPendingRealLocationRecenter = false
+                centerMap(on: ChinaCoordinateConverter.wgs84ToGCJ02(location.coordinate), duration: 0.5)
+            }
         }
     }
 
