@@ -1963,8 +1963,16 @@ struct BookmarksView: View {
                             }
                             .buttonStyle(.plain)
                             .listRowBackground(Color.clear)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    if let index = bookmarks.firstIndex(where: { $0.id == bookmark.id }) {
+                                        onDelete(IndexSet(integer: index))
+                                    }
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                            }
                         }
-                        .onDelete(perform: onDelete)
                     }
                     .scrollContentBackground(.hidden)
                 }
