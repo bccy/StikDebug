@@ -1726,6 +1726,7 @@ private struct RouteSearchSheet: View {
     @State private var errorMessage: String?
     @FocusState private var focusedField: RouteSearchField?
     @State private var lastFocusedField: RouteSearchField = .start
+    @State private var keyboardHeight: CGFloat = 0
 
     init(
         initialStart: RouteSearchSelection?,
@@ -1854,6 +1855,14 @@ private struct RouteSearchSheet: View {
                 lastFocusedField = newValue
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
+            if let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
+                keyboardHeight = frame.height
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardHeight = 0
+        }
         .onAppear {
             if startSelection == nil {
                 focusedField = .start
@@ -1864,17 +1873,16 @@ private struct RouteSearchSheet: View {
     }
 
     private var sheetHeight: CGFloat {
-        let baseHeight: CGFloat = 300
-        // 输入时(键盘弹出)不增高,避免 detent 变化触发系统顶全屏;
-        // 搜索结果在弹窗内滚动查看,键盘收起后弹窗再随内容增高
-        let resultsHeight: CGFloat = focusedField != nil || activeResults.isEmpty
+        // 键盘弹出:直接取"可用高度−键盘"的 92% 为极限,高度最大化且不触发全屏
+        if focusedField != nil {
+            return max((availableScreenHeight() - keyboardHeight) * 0.92, 220)
+        }
+        // 键盘收起:按内容自适应(搜索结果显示时变高),最多 92%
+        let resultsHeight: CGFloat = activeResults.isEmpty
             ? 0
             : min(CGFloat(activeResults.count) * 44, 260)
         let hintHeight: CGFloat = (errorMessage == nil && activeResults.isEmpty && !isResolvingSelection) ? 30 : 0
-        // 键盘弹出时可用高度缩减,上限按调整后的高度计算
-        let keyboardAdjustment: CGFloat = focusedField != nil ? 300 : 0
-        let maxHeight = max(availableScreenHeight() - keyboardAdjustment, 220) * 0.92
-        return min(baseHeight + resultsHeight + hintHeight, maxHeight)
+        return min(300 + resultsHeight + hintHeight, availableScreenHeight() * 0.92)
     }
 
     private func routeField(
