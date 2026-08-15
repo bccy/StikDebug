@@ -522,6 +522,16 @@ private enum RecenterState {
     case heading
 }
 
+private struct GlassCapsuleModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content.glassEffect(in: Capsule())
+        } else {
+            content.background(.regularMaterial, in: Capsule())
+        }
+    }
+}
+
 struct LocationSimulationView: View {
     // Serial queue: the location simulation helpers share process-wide state, so
     // serialising all calls avoids handle lifetime races.
@@ -548,6 +558,7 @@ struct LocationSimulationView: View {
     @State private var isMapVisible = true
     @State private var selectedMapLayer: MapLayer = .standard
     @State private var recenterState: RecenterState = .idle
+    @State private var suppressCameraDetectionUntil: Date = .distantPast
     @StateObject private var headingProvider = MapHeadingProvider()
 
     @State private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
@@ -636,7 +647,7 @@ struct LocationSimulationView: View {
             }
             .buttonStyle(.plain)
         }
-        .background(.ultraThinMaterial, in: Capsule())
+        .modifier(GlassCapsuleModifier())
         .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
     }
 
@@ -650,14 +661,15 @@ struct LocationSimulationView: View {
 
     private func handleCameraChange(region: MKCoordinateRegion) {
         guard recenterState != .idle,
+              Date() >= suppressCameraDetectionUntil,
               let userCoord = simulatedCoordinate ?? headingProvider.userLocation else { return }
 
         let center = region.center
         let distance = CLLocation(latitude: center.latitude, longitude: center.longitude)
             .distance(from: CLLocation(latitude: userCoord.latitude, longitude: userCoord.longitude))
 
-        // 相机中心离开用户位置超过阈值 = 用户拖动了地图,退出跟随/朝向
-        if distance > 800 {
+        // 相机中心离开用户位置 = 用户拖动了地图,退出跟随/朝向
+        if distance > 150 {
             recenterState = .idle
         }
     }
@@ -665,6 +677,8 @@ struct LocationSimulationView: View {
     private func handleRecenter() {
         switch recenterState {
         case .idle:
+            // 回中动画期间抑制拖动检测,避免图标闪动
+            suppressCameraDetectionUntil = Date().addingTimeInterval(0.8)
             withAnimation(.easeInOut(duration: 0.5)) {
                 position = .userLocation(fallback: .automatic)
             }
